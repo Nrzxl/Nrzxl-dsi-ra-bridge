@@ -1,3 +1,14 @@
+# DSi RA Bridge0.3.2 — experimental
+
+[Guia de transporte](docs/network-032.md) · [Protocolo v2](docs/protocol-v2-032.md) · [PoC residente cooperativa](docs/resident-032.md)
+
+Hardware032 NOT_RUN. Nenhuma conquista oficial. Branch031 e seus binários preservados.
+O novo receiver aceita031; o app032 usa protocolo v2 e requer receiver032.
+O pacote residente é separado e não carrega jogos NDS independentes.
+Resultados reais ficam no Actions do commit; não confundir simulação com console.
+
+---
+
 # DSi RA Bridge 0.3.1 — estabilidade experimental
 Branch: `fix/dsi-ra-bridge-network-stability-031` (base 030 preservada).
 

@@ -38,3 +38,7 @@ target_include_directories(dsirb_wire PRIVATE ../dsi/network/include)
 
 add_executable(dsirb_tx_queue ../tests/tx-queue-031.c)
 add_test(NAME transmitter_queue_no_retry COMMAND dsirb_tx_queue)
+
+add_executable(dsirb_sender ../tests/reliable-sender-cli.c)
+add_executable(dsirb_reliable_test ../tests/reliable-sender-test.c)
+add_test(NAME reliable_sender_bounds_loss_wrap COMMAND dsirb_reliable_test)

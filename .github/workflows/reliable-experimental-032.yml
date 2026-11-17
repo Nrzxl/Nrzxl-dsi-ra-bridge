@@ -1,0 +1,219 @@
+name: Reliable transport and resident PoC 032
+run-name: Reliable032 / ${{ github.ref_name }} / ${{ github.sha }}
+on:
+  push:
+    branches:
+      - feat/dsi-ra-bridge-reliable-transport-032
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Official devkitPro image tag or previously verified digest
+        required: true
+        default: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: dsirb-arm-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact dispatched commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Protocol and validator regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/logs
+          node --version | tee out/logs/node-version.txt
+          python3 --version | tee out/logs/python-version.txt
+          node tests/protocol-tests.cjs | tee out/logs/protocol-tests.json
+          node tests/client-tests.cjs | tee out/logs/client-tests.json
+          node tests/nds-format-tests.cjs | tee out/logs/nds-format-tests.json
+          node tests/capture-audit-031.cjs | tee out/logs/capture-audit-031.json
+      - name: Live protocol regression
+        run: |
+          node tests/live-protocol-tests.cjs
+          node tests/stability-031-tests.cjs
+      - name: Checkout pinned rcheevos source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Build and test real local engine and C serializer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S engine -B out/host-engine -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/host-engine --config Release
+          ctest --test-dir out/host-engine --output-on-failure
+          python3 tests/live-engine-test.py out/host-engine/dsirb_live | tee out/logs/live-engine.json
+          node tests/wire-golden-test.cjs out/host-engine/dsirb_wire | tee out/logs/wire-golden.json
+          node tests/udp-process-test.cjs out/host-engine/dsirb_live | tee out/logs/udp-process.json
+          node tests/stability-031-tests.cjs | tee out/logs/stability-031.json
+          node tests/udp-stability-031.cjs out/host-engine/dsirb_live | tee out/logs/udp-stability-031.json
+          node tests/reliable-032-tests.cjs out/host-engine/dsirb_sender | tee out/logs/reliable-core.json
+          node tests/reliable-process-032.cjs out/host-engine/dsirb_live out/host-engine/dsirb_sender | tee out/logs/reliable-process.json
+      - name: Resolve official image to immutable digest
+        id: image
+        env:
+          REQUESTED_IMAGE: ${{ inputs.image || 'devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_IMAGE" =~ ^devkitpro/devkitarm(:latest|@sha256:[0-9a-f]{64})$ ]] || exit 2
+          docker pull "$REQUESTED_IMAGE" 2>&1 | tee out/logs/image-pull.log
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$REQUESTED_IMAGE")"
+          [[ "$digest" =~ ^devkitpro/devkitarm@sha256:[0-9a-f]{64}$ ]] || exit 2
+          printf '%s\n' "$digest" > out/image-digest.txt
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$GITHUB_SHA" > out/source-commit.txt
+      - name: Two isolated ARM builds
+        env:
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pass in first second; do
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" --env HOME=/tmp \
+              --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
+              --mount "type=bind,source=$PWD,target=/src,readonly" \
+              --mount "type=bind,source=$PWD/out,target=/out" \
+              -w /work "$TOOLCHAIN_IMAGE" bash /src/scripts/build-network-032.sh "$pass" \
+              2>&1 | tee "out/logs/build-$pass.log"
+            node scripts/validate-nds.cjs "out/$pass/DSiRABridge_Network_032.nds" \
+              "out/$pass/structure.json" | tee "out/logs/structure-$pass.log"
+          done
+          cmp out/first/DSiRABridge_Network_032.nds out/second/DSiRABridge_Network_032.nds
+      - name: Build cooperative resident PoC twice
+        env:
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pass in first second; do
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" --env HOME=/tmp \
+              --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
+              --mount "type=bind,source=$PWD,target=/src,readonly" \
+              --mount "type=bind,source=$PWD/out,target=/out" \
+              -w /work "$TOOLCHAIN_IMAGE" bash /src/scripts/build-resident-032.sh "$pass" \
+              2>&1 | tee "out/logs/resident-$pass.log"
+            node scripts/validate-nds.cjs "out/resident-$pass/DSiRABridge_Resident_032.nds" "out/resident-$pass/structure.json"
+          done
+          cmp out/resident-first/DSiRABridge_Resident_032.nds out/resident-second/DSiRABridge_Resident_032.nds
+          cmp out/resident-first/payload.bin out/resident-second/payload.bin
+      - name: Simulate actual ARM946 payload under resident frame observer
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp="$RUNNER_TEMP/dsirb-unicorn032"
+          mkdir -p "$temp"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            https://github.com/unicorn-engine/unicorn/releases/download/2.1.4/ubuntu-cmake-shared-x64.7z \
+            --output "$temp/unicorn.7z"
+          printf '%s  %s\n' '07841e2df55a6d4ac063017bdfd861f1712083c6f2ffe5fe96973c834cd772dc' "$temp/unicorn.7z" | sha256sum --check -
+          7z x "$temp/unicorn.7z" "-o$temp/unpacked" -y > out/logs/unicorn-files.log
+          header="$(find "$temp/unpacked" -path '*/unicorn/unicorn.h' -print -quit)"
+          lib="$(find "$temp/unpacked" -name 'libunicorn.so*' -type f -print -quit)"
+          test -n "$header"; test -n "$lib"
+          include="$(dirname "$(dirname "$header")")"
+          library="$(dirname "$lib")"
+          gcc -std=c11 -O2 tests/resident-unicorn-032.c -I"$include" "$lib" -Wl,-rpath,"$library" -o out/resident-cpu-test
+          LD_LIBRARY_PATH="$library" out/resident-cpu-test out/resident-first/payload.bin \
+            | tee out/logs/resident-unicorn.jsonl
+          python3 scripts/package-resident-032.py | tee out/logs/resident-package.json
+          python3 tests/package-032.py out/DSi_RA_Bridge_Resident_PoC_032_CPU_ONLY.zip
+      - name: Package validated output
+        env:
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/package-sd-032.py --commit "$GITHUB_SHA" --image "$TOOLCHAIN_IMAGE" \
+            | tee out/logs/package.json
+          python3 tests/package-032.py out/DSi_RA_Bridge_SD_032_UNVALIDATED.zip | tee out/logs/sd-package-test.json
+          sha256sum out/*zip > out/ARTIFACT_SHA256SUMS.txt
+      - name: Upload evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_032-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 14
+# Experimental branch pushes and explicit dispatch; no releases or console changes.
+
+  windows-receiver:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Compile Windows local engine
+        shell: pwsh
+        run: |
+          cmake -S engine -B out/engine
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build out/engine --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir out/engine -C Release --output-on-failure
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Windows UDP and rcheevos integration
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out/logs | Out-Null
+          node tests/protocol-tests.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/client-tests.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/capture-audit-031.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/nds-format-tests.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/stability-031-tests.cjs | Tee-Object out/logs/stability-031.json
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/live-protocol-tests.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/live-engine-test.py out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/wire-golden-test.cjs out/engine/Release/dsirb_wire.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/udp-process-test.cjs out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/udp-stability-031.cjs out/engine/Release/dsirb_live.exe | Tee-Object out/logs/udp-stability-031.json
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/reliable-032-tests.cjs out/engine/Release/dsirb_sender.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/reliable-process-032.cjs out/engine/Release/dsirb_live.exe out/engine/Release/dsirb_sender.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/package-receiver-032.py --engine out/engine/Release/dsirb_live.exe --sender out/engine/Release/dsirb_sender.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/package-032.py out/receiver-032/DSi_RA_Bridge_Receiver_032.zip
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/launcher-032.py out/receiver-032/DSi_RA_Bridge_Receiver_032/Start-Receiver-032-LAN.cmd
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: DSi_RA_Bridge_Receiver_032-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 14

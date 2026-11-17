@@ -1,0 +1,9 @@
+DSi RA Bridge032 EXPERIMENTAL — hardware NOT_RUN
+Copie só nds/DSiRABridge_032. Preserve020/030/031,boot.nds,private,_nds,saves.
+Windows: Start-Receiver-032-LAN.cmd. Painel127.0.0.1:18217;UDP18216.
+cfg:sd:/DSiRABridge_032/receiver.cfg (IP PORTA HZ).
+HBMenu:Network_032.nds. Y→READY→A. Espere600 e COMPLETE.
+B solicita drenagem (até8s). START aborta. X exporta DRB+JSON em nova pasta032.
+Devolva parNETnnn + resultadoJSON + JSONL logs-032 + foto dos contadores.
+Meta600/600,semCRC,semperda residual,semavaliação duplicada: ainda não medida noDSi.
+SemNAND,firmware,Unlaunch ou conquistas oficiais.

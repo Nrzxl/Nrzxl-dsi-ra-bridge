@@ -58,7 +58,8 @@ jobs:
           set -euo pipefail
           for pass in first second; do
             docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
-              --tmpfs /tmp:rw,exec --tmpfs /work:rw,exec \
+              --user "$(id -u):$(id -g)" --env HOME=/tmp \
+              --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
               --mount "type=bind,source=$PWD,target=/src,readonly" \
               --mount "type=bind,source=$PWD/out,target=/out" \
               -w /work "$TOOLCHAIN_IMAGE" bash /src/scripts/build-arm-020.sh "$pass" \

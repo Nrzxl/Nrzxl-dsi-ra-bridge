@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 # Runs inside an official preinstalled devkitPro image, network disabled.
 set -euo pipefail
+# Container images can rely on shell-profile setup; GitHub Actions invokes bash non-login.
+export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+export DEVKITARM="${DEVKITARM:-${DEVKITPRO}/devkitARM}"
+export PATH="${DEVKITARM}/bin:${DEVKITPRO}/tools/bin:${PATH}"
+if ! command -v arm-none-eabi-gcc >/dev/null; then
+  echo "BLOCKED: devkitARM compiler unavailable at ${DEVKITARM}/bin" >&2
+  exit 3
+fi
 case "$1" in first|second) build_name="$1";; *) exit 2;; esac
 dest="/out/$build_name"
 mkdir -p "$dest"

@@ -16,7 +16,7 @@ const socket=dgram.createSocket("udp4"),child=spawn(path.resolve(o.sender),[Stri
  {stdio:["pipe","pipe","pipe"],windowsHide:true});
 let text="",errors="",ready=false,finished=false,offering=false,next=0,budget=0;
 let stats=null,lastHello=-1000,lastStatus=-1000,finAt=-1000,ackCount=0,dataTx=0,dropped=0;
-const captures=[],dropOnce=new Set(),began=performance.now(),now=()=>Math.floor(performance.now()-began);
+const captures=[],attempts=[],dropOnce=new Set(),began=performance.now(),now=()=>Math.floor(performance.now()-began);
 const fault=o.faults==="true",end=(start+total)>>>0;
 const packet=(kind,seq=0,a=0,b=0,payload=null)=>R.encode({kind,source:2,mode:1,lo,hi,seq,a,b,payload});
 function netSend(b){socket.send(b,port,o.host,e=>{if(e)fail(e);});}
@@ -52,7 +52,7 @@ socket.on("message",bytes=>{
   if(o.out){
    fs.mkdirSync(o.out,{recursive:true});fs.writeFileSync(path.join(o.out,"capture.drb"),Buffer.concat(captures.slice(0,total)));
    fs.writeFileSync(path.join(o.out,"sender.json"),JSON.stringify({version:"0.3.2",sid,session:lo,sessionHi:hi,
-    captured:total,simulated:true,...stats},null,2));
+    captured:total,simulated:true,txAttempts:attempts.join(""),...stats},null,2));
   }
   console.log(JSON.stringify({status:"PASS",provenance:"SIMULATED",sid,snapshots:total,
    actualC:stats,datagramsSent:dataTx,injectedDrops:dropped,faults:fault}));finish(0);
@@ -64,7 +64,7 @@ child.stdout.on("data",chunk=>{
   const line=text.slice(0,at).trim();text=text.slice(at+1);
   if(line.startsWith("Q ")){offering=false;if(line==="Q 1"){next++;budget--;}else budget=0;offer();}
   else if(line.startsWith("D ")){
-   const b=Buffer.from(line.slice(2),"hex"),p=R.decode(b),offset=R.dist(p.seq,start);dataTx++;
+   const b=Buffer.from(line.slice(2),"hex"),p=R.decode(b),offset=R.dist(p.seq,start);dataTx++;attempts[offset]=Math.max(attempts[offset]??0,p.a);
    if(fault&&[66,555].includes(offset)&&!dropOnce.has(offset)){
     dropOnce.add(offset);dropped++;continue;
    }

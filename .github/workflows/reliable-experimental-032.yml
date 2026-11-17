@@ -148,7 +148,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: DSi_RA_Bridge_032-${{ github.sha }}
-          path: out/
+          path: |
+            out/
+            !out/resident-cpu-test
           if-no-files-found: error
           retention-days: 14
 # Experimental branch pushes and explicit dispatch; no releases or console changes.

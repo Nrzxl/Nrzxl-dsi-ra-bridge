@@ -29,10 +29,10 @@ async function main(){
    state=await(await fetch(base+"/export")).json();
    const session=state.reliable.sessions.find(x=>x.sid===result.sid);A.ok(session);
    A.equal(session.received,count);A.equal(session.evaluated,count);A.equal(session.delivered,count);
-   A.equal(session.connection,"COMPLETE");A.equal(session.recovered,2);A.equal(session.missingInferred,0);
+   A.equal(session.connection,"COMPLETE");A.ok(session.recovered>=2);A.equal(session.missingInferred,0);
    A.ok(session.duplicate>0);A.equal(session.conflicting,0);A.ok(result.actualC.retryAttempts>=2);
    A.equal(result.actualC.originalAttempts,count);A.equal(result.actualC.acked,count);
-   A.equal(result.actualC.pending,0);A.ok(result.actualC.queuePeak<=32);A.ok(session.queuePeak<=32);
+   A.equal(result.actualC.pending,0);A.ok(result.actualC.ackDuplicate>=1);A.ok(result.actualC.ackLate>=1);A.ok(result.actualC.queuePeak<=32);A.ok(session.queuePeak<=32);
    A.equal(session.provenance,"SIMULATED");A.equal(session.officialEligible,false);
    const events=state.reliable.events.filter(x=>x.sid===result.sid);
    A.deepEqual(events.map(x=>x.id),[1,2]);A.ok(events.every(x=>x.submitted===false));

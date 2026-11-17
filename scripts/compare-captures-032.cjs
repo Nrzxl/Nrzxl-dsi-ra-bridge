@@ -18,7 +18,8 @@ function compare(capture,sender,receiver,log){
  const relevant=log.filter(x=>reliable?x.sid===sid:x.id===session.id);
  const received=relevant.filter(x=>["snapshot","reliable_snapshot"].includes(x.type));
  const evaluated=relevant.filter(x=>x.type==="reliable_evaluated"&&x.engineEvaluated);
- const rx=new Map(received.map(x=>[x.seq,x])),evalCounts=new Map();
+ const rx=new Map(received.map(x=>[x.seq,x])),evalCounts=new Map(),duplicateCounts=new Map();
+ for(const x of relevant)if(x.reason==="DUPLICATE_SNAPSHOT"||x.type==="reliable_duplicate")duplicateCounts.set(x.seq,(duplicateCounts.get(x.seq)??0)+1);
  for(const x of evaluated)evalCounts.set(x.seq,(evalCounts.get(x.seq)??0)+1);
  const missing=[],mismatch=[],duplicateEvaluation=[];
  for(const x of rows){
@@ -29,8 +30,11 @@ function compare(capture,sender,receiver,log){
  const captureSeq=rows.map(x=>x.seq),continuous=captureSeq.every((x,i)=>!i||x===((captureSeq[i-1]+1)>>>0));
  const senderCaptured=sender.captured,summaryMatches=senderCaptured===rows.length&&session.received===rx.size;
  const consistent=continuous&&summaryMatches&&!mismatch.length&&!duplicateEvaluation.length;
+ const perSequence=rows.map((x,i)=>({seq:x.seq,received:rx.has(x.seq),fingerprintMatches:rx.has(x.seq)?rx.get(x.seq).fingerprint===x.fingerprint:null,
+  duplicateDatagrams:duplicateCounts.get(x.seq)??0,
+  engineEvaluations:reliable?(evalCounts.get(x.seq)??0):null,applicationAttempts032:sender.txAttempts?Number(sender.txAttempts[i]):null}));
  const complete=!missing.length&&(!reliable||evaluated.length===rows.length);
- return {status:consistent?"PASS":"FAIL",delivery:complete?"COMPLETE":"INCOMPLETE",version:sender.version,
+ return {status:consistent&&complete?"PASS":"FAIL",integrity:consistent?"PASS":"FAIL",perSequence,delivery:complete?"COMPLETE":"INCOMPLETE",version:sender.version,
   scope:"file comparison only; physical origin is separate manual evidence",captured:rows.length,
   capturedContinuous:continuous,receiverUnique:rx.size,engineEvaluated:reliable?evaluated.length:null,
   missing,mismatchedFingerprints:mismatch,duplicateEvaluation,summaryMatches,source:rows[0].source,

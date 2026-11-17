@@ -29,9 +29,9 @@ int main(int argc,char**argv){
   else if(op=='S'){
    printf("S {\"base\":%u,\"next\":%u,\"queued\":%u,\"acked\":%u,\"pending\":%u,"
     "\"originalAttempts\":%u,\"originalAccepted\":%u,\"retryAttempts\":%u,\"retryAccepted\":%u,"
-    "\"sendFailed\":%u,\"rtoMs\":%u,\"queuePeak\":%u,\"backpressure\":%u,\"failed\":%s,\"captureToAckMaxMs\":%u}\n",
+    "\"sendFailed\":%u,\"rtoMs\":%u,\"queuePeak\":%u,\"backpressure\":%u,\"failed\":%s,\"captureToAckMaxMs\":%u,\"ackLate\":%u,\"ackDuplicate\":%u,\"ackInvalid\":%u}\n",
     s.base,s.next,s.queued,s.acked,r_pending(&s),s.original_attempts,s.original_accepted,s.retry_attempts,s.retry_accepted,
-    s.send_failed,s.rto,s.peak,s.backpressure,s.failed?"true":"false",s.capture_ack_max);
+    s.send_failed,s.rto,s.peak,s.backpressure,s.failed?"true":"false",s.capture_ack_max,s.ack_late,s.ack_duplicate,s.ack_invalid);
   }else if(op=='G'){
    uint32_t words[4]={0x44534931u,66,0,66^0xA5A55A5Au};
    wire_sample(data,2,1,lo,66,396,2,0,0,words);

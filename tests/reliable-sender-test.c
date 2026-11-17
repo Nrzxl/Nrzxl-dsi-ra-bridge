@@ -32,7 +32,8 @@ static void run(unsigned count,uint32_t start){
 }
 int main(void){
  run(600,0);run(1200,0);run(6000,0);run(600,0xFFFFFF00u);
- RSender s;r_init(&s,0);assert(r_offer(&s,data,0));REntry*e=r_due(&s,0);assert(e);r_sent(&s,e,0,false);
+ RSender s;r_init(&s,0);assert(r_offer(&s,data,0));assert(!r_ack(&s,1,0,32,1));assert(!r_ack(&s,0,1,31,1));assert(s.acked==0);
+ REntry*e=r_due(&s,0);assert(e);r_sent(&s,e,0,false);
  assert(s.send_failed==1&&!r_due(&s,50));assert(r_due(&s,300));assert(!r_ack(&s,100,0,32,400));
  assert(!r_ack(&s,0,0,33,400));
  r_init(&s,0);for(unsigned i=0;i<32;i++)assert(r_offer(&s,data,0));assert(!r_offer(&s,data,0));

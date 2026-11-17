@@ -143,6 +143,17 @@ jobs:
             | tee out/logs/package.json
           python3 tests/package-032.py out/DSi_RA_Bridge_SD_032_UNVALIDATED.zip | tee out/logs/sd-package-test.json
           sha256sum out/*zip > out/ARTIFACT_SHA256SUMS.txt
+      - name: Upload separately isolated resident CPU-only experiment
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_Resident_PoC_032-${{ github.sha }}
+          path: |
+            out/DSi_RA_Bridge_Resident_PoC_032_CPU_ONLY.zip
+            out/resident-first/
+            out/resident-second/
+            out/logs/resident*
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload evidence even after failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -151,6 +162,9 @@ jobs:
           path: |
             out/
             !out/resident-cpu-test
+            !out/DSi_RA_Bridge_Resident_PoC_032_CPU_ONLY.zip
+            !out/resident-first/
+            !out/resident-second/
           if-no-files-found: error
           retention-days: 14
 # Experimental branch pushes and explicit dispatch; no releases or console changes.

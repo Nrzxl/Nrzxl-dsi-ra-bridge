@@ -140,3 +140,39 @@ deve manterGPL,avisos efontes correspondentes; separar o componente
 GPL de ferramentas MIT não elimina obrigações do componente.
 Unicorn é ferramenta de testeGPL, executada fora dos bináriosDSi.
 Não é embarcada nos ZIPsSD; os relatórios identificam revisão eSHA.
+
+## Caminho UDP e pilhaSDK inspecionados
+Revisões de referência lidas:
+- devkitPro/dswifi a80539fa8ede95f65bba416b7ffcba2c05dbdecf:
+  source/sgIP/sgIP_sockets.c, sgIP_UDP.c e dswifi9.c.
+- devkitPro/calico 81b75e314d57ed1784545e28554e567f26f572f1:
+  source/nds/netbuf.c e source/nds/arm7/wifi.twl.32.c; interfacescache/tick.
+O inventário doSDK realmente compilado fica noartefato; estas são revisões
+inspecionadas de referência, não uma alegação de recompilar o driver.
+
+sendto delega a sgIP_UDP_SendTo/SendPacket. Nessa implementação, a pilha
+aloca memblock, copia o payload, chama sgIP_IP_SendViaIP e retorna o
+comprimento. Esse retorno não confirma recepção remota e não propaga
+uma confirmação deentrega IP. A cópia em memblock também significa que
+reutilizar o buffer do caller após sendto não é, por si só, a explicação
+das duplicatas nesse código de referência.
+Não há retry de aplicaçãoUDP nesse caminho; ARP, filasIP, transferência
+ARM9/ARM7, SDIO e MAC têm comportamentos próprios, sem recibo pontaaponta.
+
+Calico usa poolsNetBuf e driverARM7/SDIO para a interfaceTWL.
+Inspecionar essas fontes não revela qual fronteira duplicou os datagramas
+do teste físico. Para localizar a origem exata ainda faltaria correlacionar
+um capturePC (por exemploWireshark noPC, sem enfraquecer o roteador) com
+instrumentação no limiteTX de ARM7/SDIO, em build separado e validado.
+Não foi instalado um driverinstrumentado noconsole nesta etapa.
+
+Conclusão suportada pela evidência031:600 tentativas deaplicação,
+656 datagramas desnapshot noWindows,598 únicos,58 cópias idênticas.
+Logo não se pode confundir ACK/retryMAC com uma chamada sendto extra.
+O032 acrescenta um recibo deaplicação e retryseletivo; ele recupera perdas
+e torna duplicações toleráveis, mas não prova ter eliminado a causa inferior.
+
+Fontes:
+https://github.com/devkitPro/dswifi/blob/a80539fa8ede95f65bba416b7ffcba2c05dbdecf/source/sgIP/sgIP_UDP.c
+https://github.com/devkitPro/dswifi/blob/a80539fa8ede95f65bba416b7ffcba2c05dbdecf/source/sgIP/sgIP_sockets.c
+https://github.com/devkitPro/calico/blob/81b75e314d57ed1784545e28554e567f26f572f1/source/nds/arm7/wifi.twl.32.c

@@ -54,5 +54,24 @@ if(process.argv[2]){
   payload:P.encode({source:2,mode:1,session:27,seq:66,frame:396,counter:66,readTicks:2})});
  eq(hex,expected.toString("hex"));
 }
+{
+ let now=0,acks=[],callbacks=[],dispatch=0;
+ const peer={address:"127.0.0.1",port:42};
+ const c=new ReliableCore({now:()=>now,send:(b,p,cb)=>{acks.push(R.decode(b));cb(null);},
+  evaluate:(s,row,done)=>{dispatch++;callbacks.push(done);}});
+ const hello=R.encode({kind:R.K.HELLO,lo:31,hi:32,source:2,mode:1,seq:0,a:10,b:100});
+ const pkt=i=>R.encode({kind:R.K.DATA,lo:31,hi:32,source:2,mode:1,seq:i,a:1,b:0,
+  payload:P.encode({source:2,mode:1,session:31,seq:i,counter:i})});
+ c.receive(hello,peer);for(let i=0;i<32;i++)c.receive(pkt(i),peer);
+ const s=[...c.sessions.values()][0];eq(s.buffer.size,32);eq(dispatch,1);eq(acks.at(-1).b,0);
+ c.receive(pkt(32),peer);eq(s.buffer.size,32);
+ c.receive(R.encode({kind:R.K.FIN,lo:31,hi:32,source:2,mode:1,seq:32}),peer);eq(s.closed,false);
+ while(callbacks.length)callbacks.shift()(null,true);
+ eq(s.next,32);eq(s.evaluated,32);eq(s.buffer.size,0);eq(acks.at(-1).b,32);
+ c.receive(pkt(31),peer);eq(s.evaluated,32);
+ c.receive(pkt(32),peer);eq(dispatch,33);now=20000;c.tick();callbacks.shift()(null,true);
+ eq(s.evaluated,32);eq(s.failed,true);
+}
+
 console.log(JSON.stringify({status:"PASS",checks,sessions:[600,1200,6000],loss:[66,555],
  idempotent:true,ordered:true,ackAfterEvaluation:true,wrap:true,finiteBuffers:true,cGolden:!!process.argv[2]}));

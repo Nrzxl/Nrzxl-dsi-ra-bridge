@@ -12,10 +12,10 @@
 #define SHARED 0x02300000u
 #define STACK  0x02400000u
 #define RET    0x02500000u
-typedef struct {unsigned instructions,frames,valid,rejected;uint32_t last_bframe;} Bench;
+typedef struct {unsigned instructions,frames,valid,rejected;uint32_t last_bframe,period;} Bench;
 static void instruction(uc_engine*uc,uint64_t address,uint32_t size,void*user){
  (void)address;(void)size;Bench*b=user;
- if(++b->instructions%500)return;
+ if(++b->instructions%b->period)return;
  PocState s;assert(uc_mem_read(uc,SHARED,&s,sizeof(s))==UC_ERR_OK);
  PocRecord r;poc_read(&s,&r,b->frames,0);
  if(r.valid){b->valid++;assert(r.bframe>=b->last_bframe);b->last_bframe=r.bframe;}
@@ -38,7 +38,7 @@ int main(int argc,char**argv){
   uint32_t r0=SHARED,sp=STACK+65520,lr=RET;
   assert(uc_reg_write(uc,UC_ARM_REG_R0,&r0)==UC_ERR_OK);
   assert(uc_reg_write(uc,UC_ARM_REG_SP,&sp)==UC_ERR_OK);assert(uc_reg_write(uc,UC_ARM_REG_LR,&lr)==UC_ERR_OK);
-  Bench b={0};uc_hook hook;assert(uc_hook_add(uc,&hook,UC_HOOK_CODE,instruction,&b,base,base+n)==UC_ERR_OK);
+  Bench b={0};b.period=pass?499:500;uc_hook hook;assert(uc_hook_add(uc,&hook,UC_HOOK_CODE,instruction,&b,base,base+n)==UC_ERR_OK);
   uc_err err=uc_emu_start(uc,base,RET,10000000,10000000);
   if(err)fprintf(stderr,"Unicorn: %s\n",uc_strerror(err));assert(err==UC_ERR_OK);
   assert(b.frames==6000&&b.valid>5000&&b.last_bframe>5900);

@@ -37,7 +37,7 @@ try:
     output, _ = p.communicate(timeout=8)
     assert p.returncode == 0, output.decode(errors="replace")
     print(json.dumps(dict(status="PASS", launcher="packaged CMD on Windows", engine=True,
-                          executionPolicyChanged=False, physical031="NOT_RUN")))
+                          executionPolicyChanged=False, physical032="NOT_RUN")))
 finally:
     if p.poll() is None:
         # Ensure test-only descendants cannot survive a failed assertion.

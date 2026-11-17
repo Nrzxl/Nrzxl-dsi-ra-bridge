@@ -20,4 +20,4 @@ with zipfile.ZipFile(archive) as z:
         count += 1
     assert count == len(names) - 1  # every entry except the sums file itself
 print(json.dumps(dict(status="PASS", zip=archive, verified_hashes=count,
-                      manifest=True, archive_integrity=True, physical031="NOT_RUN")));
+                      manifest=True, archive_integrity=True, physical032="NOT_RUN")));

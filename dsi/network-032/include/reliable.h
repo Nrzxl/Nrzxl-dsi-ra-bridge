@@ -11,7 +11,8 @@ static inline void r_wire(uint8_t*p,unsigned kind,unsigned source,unsigned mode,
  uint32_t seq,uint32_t a,uint32_t b,bool retry,const uint8_t*payload){
  memset(p,0,96);memcpy(p,"DSR2",4);p[4]=2;p[5]=kind;p[6]=source;p[7]=(mode<<1)|(retry?1:0);
  put32(p+8,lo);put32(p+12,hi);put32(p+16,seq);put32(p+20,a);put32(p+24,b);
- if(payload)memcpy(p+28,payload,64);put32(p+92,crc32(p,92));
+ if(payload){memcpy(p+28,payload,64);}
+ put32(p+92,crc32(p,92));
 }
 static inline bool r_parse(RPacket*out,const uint8_t*p,unsigned n){
  if(n!=96||memcmp(p,"DSR2",4)||p[4]!=2||p[5]<1||p[5]>8||p[6]<1||p[6]>2||p[7]>3||get32(p+92)!=crc32(p,92))return false;
@@ -33,7 +34,8 @@ static inline bool r_offer(RSender*s,const uint8_t*data,uint32_t now){
  if(s->failed||r_pending(s)>=32){s->backpressure++;return false;}
  REntry*e=&s->entries[s->next&31];memset(e,0,sizeof(*e));e->valid=true;e->seq=s->next++;
  e->capture_ms=now;memcpy(e->data,data,64);s->queued++;
- if(r_pending(s)>s->peak)s->peak=r_pending(s);return true;
+ if(r_pending(s)>s->peak){s->peak=r_pending(s);}
+ return true;
 }
 static inline void r_rtt(RSender*s,uint32_t ms){
  if(!s->srtt){s->srtt=ms?ms:1;s->rttvar=(ms+1)/2;}
@@ -45,6 +47,12 @@ static inline bool r_ack(RSender*s,uint32_t next,uint32_t mask,uint32_t credit,u
  s->ack_rx++;uint32_t d=next-s->base;
  if(d>=0x80000000u){s->ack_late++;return false;}
  if(d>r_pending(s)||credit>32){s->ack_invalid++;return false;}
+ for(uint32_t i=0;i<d;i++){
+  REntry*e=&s->entries[(s->base+i)&31];if(!e->valid||e->seq!=s->base+i||!e->attempts){s->ack_invalid++;return false;}
+ }
+ for(uint32_t i=0;i<32;i++)if(mask&(1u<<i)){
+  if(i>=s->next-next||!s->entries[(next+i)&31].attempts){s->ack_invalid++;return false;}
+ }
  if(s->has_ack&&s->last_ack_seq==next&&s->last_ack_mask==mask)s->ack_duplicate++;
  s->has_ack=true;s->last_ack_seq=next;s->last_ack_mask=mask;s->credit=credit;
  for(uint32_t i=0;i<d;i++){

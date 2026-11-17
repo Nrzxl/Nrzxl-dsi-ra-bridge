@@ -1,0 +1,23 @@
+DSi RA Bridge Network 0.3.0 — EXPERIMENTAL, physical network NOT_RUN
+Preserve the tested diagnostic 020. Do not replace boot.nds, private/, R4
+or existing bootstrap. Back up the internal SD before adding NEW files.
+Copy nds/DSiRABridge_030/DSiRABridge_Network_030.nds from the validated ZIP.
+Cancel any replacement prompt.
+Run Windows receiver on your trusted private LAN:
+node windows/receiver/server.cjs --bind 0.0.0.0
+Open http://127.0.0.1:18217. Download receiver.cfg and copy it to the NEW
+SD folder DSiRABridge_030/receiver.cfg. It contains PC IPv4, port and rate
+only, no wireless credentials. Alternatively edit values with D-pad.
+Use existing saved console Wi-Fi settings; do not weaken your main router.
+Launch Flipnote Lenny → HBMenu → nds/DSiRABridge_030 → Network_030.nds.
+Y connects. Observe INIT → ASSOC/DHCP → WAIT RECEIVER → READY.
+A toggles sampling. Default 10 Hz; up to 600 records. B stops networking.
+After STOPPED, X exports NETnnn.drb to DSiRABridge_030/ without overwriting.
+START exits. If a driver timeout occurs, record the exact state and stop.
+Do not install Unlaunch or modify firmware to bypass a failure.
+The modern SDK has DSi/WPA support, but your access path is UNVERIFIED.
+The receiver marks packets RUNTIME_UNVERIFIED. Physical confirmation is
+manual and must record evidence. CRC is not authentication.
+No RetroAchievements account, IDs or unlock requests are used.
+Return NETnnn.drb, a console photo, exported receiver JSON and build manifest.
+Never return NAND, keys, tokens, Wi-Fi configuration or game dumps.

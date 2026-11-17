@@ -1,0 +1,40 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<title>DSi RA Bridge Receiver 0.3.0</title>
+<style>body{background:#101b2a;color:#e8f2ff;font:16px system-ui;margin:32px auto;max-width:1100px;padding:20px}
+h1{font-size:27px}button,a,input{background:#263d58;color:#fff;border:1px solid #5a91c1;border-radius:6px;padding:9px;margin:5px}
+pre{white-space:pre-wrap;background:#19293d;padding:16px}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:10px;border-bottom:1px solid #345}small{color:#adc9e3}</style>
+<h1>DSi RA Bridge Receiver <small>0.3.0</small></h1>
+<p>Diagnóstico controlado. Nenhuma conquista é enviada ao RetroAchievements.</p>
+<p id="network"></p><a id="config" href="/config">Baixar receiver.cfg</a><a href="/export">Exportar resultado</a>
+<table><thead><tr><th>Origem / sessão</th><th>Conexão</th><th>Recebidos / Hz</th><th>Faltantes / duplicados / fora de ordem</th><th>RTT</th></tr></thead><tbody id="sessions"></tbody></table>
+<pre id="values">Aguardando HELLO do console ou simulador.</pre>
+<p>Confirmar console físico é uma declaração sua, sem autenticação criptográfica.</p>
+<input id="session" placeholder="ID da sessão"><input id="note" placeholder="Evidência: console, foto, horário"><button id="confirm">Confirmar execução física manualmente</button>
+<pre id="message"></pre><pre id="engine"></pre>
+<script>
+const csrf="__CSRF__";
+function txt(id,s){document.getElementById(id).textContent=s;}
+async function refresh(){
+ try{
+ const s=await(await fetch("/state")).json();txt("network","UDP "+s.listen+" · IPs privados do Windows: "+s.windowsIPs.join(", "));
+ if(s.windowsIPs.length)document.getElementById("config").href="/config?ip="+encodeURIComponent(s.windowsIPs[0]);
+ const body=document.getElementById("sessions");body.replaceChildren();
+ for(const x of s.sessions){
+  const tr=document.createElement("tr");
+  for(const value of [x.provenance+"\n"+x.id,x.connection,x.received+" / "+(x.hz??0).toFixed(1),
+   x.missingInferred+" / "+x.duplicate+" / "+x.reordered,x.rttMs===null?"—":x.rttMs.toFixed(1)+" ms"]){
+   const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}
+  tr.onclick=()=>{document.getElementById("session").value=x.id;};body.appendChild(tr);
+ }
+ txt("values",JSON.stringify({sessions:s.sessions.map(x=>({id:x.id,frame:x.frame,values:x.values,readTicks:x.readTicks,
+  producerDropped:x.producerDropped,manualNote:x.manualNote})),errors:s.totals,logDropped:s.logDropped,
+  note:"RTT inclui o processamento do DSi. Latência de ida não é medida."},null,2));
+ txt("engine",JSON.stringify(s.engine,null,2));
+ }catch(e){txt("message","Receiver indisponível: "+e.message);}
+}
+document.getElementById("confirm").onclick=async()=>{
+ const r=await fetch("/confirm",{method:"POST",headers:{"Content-Type":"application/json","X-DSRB-Token":csrf},
+ body:JSON.stringify({id:document.getElementById("session").value,note:document.getElementById("note").value})});
+ txt("message",await r.text());refresh();
+};refresh();setInterval(refresh,500);
+</script></html>

@@ -41,6 +41,11 @@ Adicione somente a pasta nova do ZIP SD validado ao SD interno, com o
 console desligado e backup prévio. Cancele qualquer substituição.
 Abra Flipnote Studio → Flipnote Lenny → HBMenu → nds/DSiRABridge_030.
 Y inicia conexão; A alterna transmissão; B solicita parada; START encerra.
+R, com o worker parado, inicia uma sessão de coleta OFFLINE sem rádio.
+Use R antes de Y para diagnosticar sem depender de Wi-Fi. A pausa/retoma e
+X exporta NETnnn.drb. A foto da tela identifica OFFLINE; a importação no
+viewer continua não autenticada. Se o SDK ficar preso, reinicie o app e
+use R antes de tentar inicializar a rede.
 X exporta .drb só depois de o worker encerrar, evitando I/O de SD e rede
 concorrentes durante a exportação.
 

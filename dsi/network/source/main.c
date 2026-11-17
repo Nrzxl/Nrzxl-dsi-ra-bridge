@@ -33,7 +33,7 @@ static volatile unsigned saved_profiles=0;
 static uint32_t frame=0,sequence=0,captured=0,last_read_ticks=0;
 static uint8_t ip[4]={192,168,0,2};
 static unsigned port=18216,rate=10,field=0;
-static bool streaming=false,twl=false,fs_ready=false,exiting=false;
+static bool offline=false,streaming=false,twl=false,fs_ready=false,exiting=false;
 static u64 started_at=0,exit_at=0;
 static char local_ip[24]="not connected",message[72]="Y connect; no permanent changes";
 static volatile uint32_t controlled[4] __attribute__((aligned(16)));
@@ -124,9 +124,11 @@ static void sample(uint32_t buttons){
  last_read_ticks=(uint32_t)(tickGetCount()-t);
  wire_sample(p,1,twl?1:0,session,sequence++,frame,last_read_ticks,overflows,
   (uint32_t)(uintptr_t)controlled,words);captured++;
- IrqState irq=irqLock();
- if(tx_pending)overflows++;else{memcpy(tx_slot,p,64);tx_pending=1;}
- irqUnlock(irq);
+ if(!offline){
+  IrqState irq=irqLock();
+  if(tx_pending)overflows++;else{memcpy(tx_slot,p,64);tx_pending=1;}
+  irqUnlock(irq);
+ }
 }
 static bool mount_sd(void){
  if(!fs_ready)fs_ready=fatInitDefault();
@@ -169,13 +171,18 @@ int main(void){
   if(exiting){if(worker_done||elapsed(exit_at,2000000))break;continue;}
   if(down&KEY_B){streaming=false;stop_requested=1;}
   if((down&KEY_Y)&&worker_done&&private_ip()){
-   stop_requested=0;worker_done=0;streaming=false;session++;sequence=0;captured=0;
+   stop_requested=0;worker_done=0;offline=false;streaming=false;session++;sequence=0;captured=0;
    sent=send_errors=overflows=peer_replies=0;started_at=tickGetCount();
    threadPrepare(&worker,network_worker,NULL,worker_stack+sizeof(worker_stack),MAIN_THREAD_PRIO+1);
    threadAttachLocalStorage(&worker,NULL);threadStart(&worker);
   }
   if(stage==INITIALIZING&&elapsed(started_at,20000000)){stop_requested=1;snprintf(message,sizeof(message),"INIT timeout. START exits; driver unverified.");}
-  if((down&KEY_A)&&stage==READY&&!worker_done)streaming=!streaming;
+  if((down&KEY_R)&&worker_done){
+   offline=!offline;streaming=offline;
+   if(offline){session++;sequence=0;captured=0;overflows=0;tx_pending=0;}
+   snprintf(message,sizeof(message),offline?"OFFLINE capture; no radio. B pause, X export.":"Offline mode stopped.");
+  }
+  if((down&KEY_A)&&((stage==READY&&!worker_done)||(offline&&worker_done)))streaming=!streaming;
   if(down&KEY_X){streaming=false;export_capture();}
   if(worker_done){
    if(down&KEY_LEFT)field=(field+5)%6;
@@ -189,10 +196,10 @@ int main(void){
    if(rate<1)rate=1;
    if(rate>30)rate=30;
   }
-  if(streaming&&stage==READY&&(frame%(60/rate))==0)sample(held);
+  if(streaming&&((stage==READY&&!worker_done)||(offline&&worker_done))&&(frame%(60/rate))==0)sample(held);
   if(frame%10==0||down){
    iprintf("\x1b[2JDSi RA Bridge Network 0.3.0\nCONTROLLED DATA / NO RA SUBMISSIONS\n");
-   iprintf("Mode %s; model unverified\n",twl?"DSi":"DS");
+   iprintf("Mode %s; %s\n",twl?"DSi":"DS",offline?"OFFLINE":"NETWORK");
    iprintf("State %s; profiles %u\n",stages[stage],saved_profiles);
    iprintf("PC %u.%u.%u.%u:%u\n",ip[0],ip[1],ip[2],ip[3],port);
    iprintf("DS IP %s\n",local_ip);
@@ -201,7 +208,7 @@ int main(void){
    iprintf("Stored %lu/600; sent %lu\n",(unsigned long)captured,(unsigned long)sent);
    iprintf("Send errors %lu; queue drops %lu\n",(unsigned long)send_errors,(unsigned long)overflows);
    iprintf("Peer replies %lu; read %lu ticks\n",(unsigned long)peer_replies,(unsigned long)last_read_ticks);
-   iprintf("Y connect | A stream/pause\nB stop | X SD export | START exit\nD-pad edits only while stopped\n\n%s\n",message);
+   iprintf("Y connect | R offline | A stream\nB stop | X SD export | START exit\nD-pad edits only while stopped\n\n%s\n",message);
   }
  }
  return 0;

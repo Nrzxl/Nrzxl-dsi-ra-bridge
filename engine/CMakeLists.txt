@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.19)
 project(dsirb_demo C)
+if(MSVC)
+ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 enable_testing()
 set(RC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/rcheevos")
 if(NOT EXISTS "${RC_ROOT}/include/rc_runtime.h")

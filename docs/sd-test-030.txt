@@ -12,6 +12,9 @@ Use existing saved console Wi-Fi settings; do not weaken your main router.
 Launch Flipnote Lenny → HBMenu → nds/DSiRABridge_030 → Network_030.nds.
 Y connects. Observe INIT → ASSOC/DHCP → WAIT RECEIVER → READY.
 A toggles sampling. Default 10 Hz; up to 600 records. B stops networking.
+R while stopped starts OFFLINE capture without the radio; A pauses/resumes.
+Use R before Y if network initialization is unavailable. X exports the
+controlled capture; OFFLINE is displayed and must be noted with the evidence.
 After STOPPED, X exports NETnnn.drb to DSiRABridge_030/ without overwriting.
 START exits. If a driver timeout occurs, record the exact state and stop.
 Do not install Unlaunch or modify firmware to bypass a failure.

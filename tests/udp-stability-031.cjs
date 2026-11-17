@@ -19,7 +19,7 @@ async function main(){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),"dsirb031-"));
  const args=["windows/receiver/server.cjs","--port",String(udp),"--web",String(web),"--logDir",dir];
  if(process.argv[2])args.push("--engine",path.resolve(process.argv[2]));
- const receiver=child(args);let socket,finished=false;
+ const receiver=child(args);let socket,finished=false,ongoing=null;
  try{
   await new Promise((resolve,reject)=>{let o="";const tm=setTimeout(()=>reject(Error("startup "+receiver.errors)),6000);
    receiver.stdout.on("data",b=>{o+=b;if(o.includes("RECEIVER http")){clearTimeout(tm);resolve();}});
@@ -27,7 +27,7 @@ async function main(){
   });
   for(const [session,frames] of [[4100,600],[4101,1200]]){
    const sim=child(["windows/receiver/simulate.cjs","--port",String(udp),"--session",String(session),"--frames",String(frames)]);
-   await done(sim,30000);
+   await done(sim,60000);
    const state=await(await fetch(base+"/state")).json(),s=state.sessions.find(x=>x.session===session);
    A.equal(s.received,frames);A.equal(s.duplicate,0);A.equal(s.missingInferred,0);A.equal(s.provenance,"SIMULATED");
   }
@@ -59,9 +59,10 @@ async function main(){
   }
   const html=await(await fetch(base)).text(),token=html.match(/const csrf="([a-f0-9]+)"/)[1];
   const exported=path.join(dir,"DSi_RA_Bridge_031_Result.json");fs.writeFileSync(exported,JSON.stringify(state,null,2));
+  let stopSeq=3;ongoing=setInterval(()=>socket?.send(sample(stopSeq++),udp,"127.0.0.1",()=>{}),10);
   const exit=done(receiver,6000);
   const response=await fetch(base+"/stop",{method:"POST",headers:{"X-DSRB-Token":token}});
-  A.equal(response.status,200);await exit;finished=true;socket.close();socket=null;
+  A.equal(response.status,200);await exit;clearInterval(ongoing);finished=true;socket.close();socket=null;
   const log=fs.readFileSync(state.logPath,"utf8").trim().split("\n").map(JSON.parse);
   A.ok(log.some(r=>r.type==="shutdown"));A.ok(log.some(r=>r.reason==="DUPLICATE_SNAPSHOT"));
   fs.mkdirSync("out/logs",{recursive:true});
@@ -70,6 +71,6 @@ async function main(){
   console.log(JSON.stringify({status:"PASS",scope:"separate Node processes / actual loopback UDP; simulated agents",
    consecutive:[600,1200],duplicate:true,reorder:true,repeatedPong:true,crc:true,truncated:true,unexpectedControl:true,
    export:true,shutdownDuringSession:true,engine:process.argv[2]?"PASS":"NOT_RUN",physical031:"NOT_RUN"}));
- }finally{if(socket)socket.close();if(!finished)receiver.kill();}
+ }finally{if(ongoing)clearInterval(ongoing);if(socket)socket.close();if(!finished)receiver.kill();}
 }
 main().catch(e=>{console.error(e.stack);process.exitCode=1;});

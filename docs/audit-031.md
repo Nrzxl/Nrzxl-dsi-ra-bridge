@@ -101,3 +101,10 @@ hardware com sucesso desses testes.
 **NOT_RUN**:hardware031,WPA2/SDIO031,estabilidade prolongada real,
 câmera (não usada),jogo coexistente,monitor entreprogramas,conquistas oficiais.
 Semcredenciais,semNAND,semloader experimental distribuído nesta etapa.
+
+Histórico de validação: o primeiro CI passou em Linux/ARM, mas o teste de
+1.200 snapshots no Windows ultrapassou o deadline de 30s. O transporte
+continuava recebendo no ensaio local (600 + 1.144 registros no instante
+do encerramento). O deadline do teste foi ampliado para 60s para tolerar
+a resolução de timers e escalonamento do Windows. Não é correção de rádio.
+O resultado final deve ser verificado no run do commit posterior.

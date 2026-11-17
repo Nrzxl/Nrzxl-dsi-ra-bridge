@@ -37,7 +37,7 @@ class Core{
   if(reason==="UNREGISTERED_SESSION")this.totals.unregistered++;
   if(reason==="CAPACITY_DROPPED")this.totals.capacityDropped++;
   if(reason==="RATE_DROPPED")this.totals.rateDropped++;
-  if(reason==="UNEXPECTED_CONTROL_STATE"||reason==="LATE_PACKET")this.totals.controlRejected++;
+  if(reason==="UNEXPECTED_CONTROL_STATE"||(reason==="LATE_PACKET"&&extra.kind))this.totals.controlRejected++;
   const row={type:"packet_diagnostic",reason,id:s?.id??null,peer:peer.address+":"+peer.port,
    length:bytes.length,magic:bytes.subarray(0,4).toString("hex"),fingerprint:crypto.createHash("sha256").update(bytes).digest("hex"),
    ...extra};

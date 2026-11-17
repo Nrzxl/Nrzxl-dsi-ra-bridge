@@ -36,6 +36,7 @@ jobs:
           node tests/protocol-tests.cjs | tee out/logs/protocol-tests.json
           node tests/client-tests.cjs | tee out/logs/client-tests.json
           node tests/nds-format-tests.cjs | tee out/logs/nds-format-tests.json
+          node tests/capture-audit-031.cjs | tee out/logs/capture-audit-031.json
       - name: Live protocol regression
         run: |
           node tests/live-protocol-tests.cjs
@@ -99,6 +100,7 @@ jobs:
           set -euo pipefail
           python3 scripts/package-sd-031.py --commit "$GITHUB_SHA" --image "$TOOLCHAIN_IMAGE" \
             | tee out/logs/package.json
+          python3 tests/package-031.py out/DSi_RA_Bridge_SD_031_UNVALIDATED.zip | tee out/logs/sd-package-test.json
           sha256sum out/*zip > out/ARTIFACT_SHA256SUMS.txt
       - name: Upload evidence even after failure
         if: always()
@@ -141,6 +143,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/client-tests.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          node tests/capture-audit-031.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/nds-format-tests.cjs
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           node tests/stability-031-tests.cjs | Tee-Object out/logs/stability-031.json
@@ -156,6 +160,10 @@ jobs:
           node tests/udp-stability-031.cjs out/engine/Release/dsirb_live.exe | Tee-Object out/logs/udp-stability-031.json
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python scripts/package-receiver-031.py --engine out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/package-031.py out/receiver-031/DSi_RA_Bridge_Receiver_031.zip
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/launcher-031.py out/receiver-031/DSi_RA_Bridge_Receiver_031/Start-Receiver-LAN.cmd
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

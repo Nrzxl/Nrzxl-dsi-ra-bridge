@@ -23,3 +23,12 @@ if(NOT WIN32)
  target_link_libraries(dsirb_demo PRIVATE m)
 endif()
 add_test(NAME controlled_conditions_and_measured COMMAND dsirb_demo)
+
+add_executable(dsirb_live live_demo.c)
+target_link_libraries(dsirb_live PRIVATE rc_runtime)
+if(NOT WIN32)
+ target_link_libraries(dsirb_live PRIVATE m)
+endif()
+
+add_executable(dsirb_wire ../tests/wire-golden.c)
+target_include_directories(dsirb_wire PRIVATE ../dsi/network/include)

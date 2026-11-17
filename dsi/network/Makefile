@@ -19,7 +19,7 @@ ifneq ($(notdir $(CURDIR)),build)
 export OUTPUT := $(CURDIR)/$(TARGET)
 export VPATH := $(CURDIR)/source
 export DEPSDIR := $(CURDIR)/build
-export INCLUDE := -I$(LIBNDS)/include -I$(DEVKITPRO)/calico/include
+export INCLUDE := -I$(CURDIR)/include -I$(LIBNDS)/include -I$(DEVKITPRO)/calico/include
 export LIBPATHS := -L$(LIBNDS)/lib
 export LD := $(CC)
 export OFILES := main.o

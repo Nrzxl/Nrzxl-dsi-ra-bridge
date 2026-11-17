@@ -23,7 +23,7 @@ const udp=dgram.createSocket("udp4"),csrf=crypto.randomBytes(24).toString("hex")
 const interfaces=Object.values(os.networkInterfaces()).flat().filter(x=>x&&x.family==="IPv4"&&!x.internal)
  .map(x=>x.address).filter(L.privateIP);
 let child=null,activeEngineSession=null,engineText="",engineAvailable=false,engineDropped=0,stopping=false;
-const localEvents=[];
+const localEvents=[];let engineProgress=null;
 if(opt.engine){
  const exe=path.resolve(opt.engine);if(!fs.existsSync(exe))throw Error("Engine executable missing");
  child=spawn(exe,[],{stdio:["pipe","pipe","pipe"],windowsHide:true});
@@ -36,7 +36,9 @@ if(opt.engine){
   let at;while((at=engineText.indexOf("\n"))>=0){
    const line=engineText.slice(0,at);engineText=engineText.slice(at+1);
    try {const row=JSON.parse(line);row.type="rcheevos_local";row.submitted=false;
-    localEvents.push(row);if(localEvents.length>20)localEvents.shift();event(row);}
+    if(row.event==="LOCAL_TEST_TRIGGER"){localEvents.push(row);if(localEvents.length>20)localEvents.shift();}
+    else engineProgress=row;
+    event(row);}
    catch(_){event({type:"engine_message",message:line.slice(0,200)});}
   }
  });
@@ -57,7 +59,7 @@ function summary(s){
 function state(){return {version:"0.3.0",listen:opt.bind+":"+opt.port,windowsIPs:interfaces,
  sessions:[...sessions.values()].map(summary),totals,logDropped,logPath,
  engine:{available:engineAvailable,activeSession:activeEngineSession,dropped:engineDropped,
-  scope:"CONDIÇÕES LOCAIS CONTROLADAS; NÃO ENVIADAS AO RETROACHIEVEMENTS",events:localEvents}};}
+  scope:"CONDIÇÕES LOCAIS CONTROLADAS; NÃO ENVIADAS AO RETROACHIEVEMENTS",events:localEvents,progress:engineProgress}};}
 function send(kind,s,nonce){udp.send(L.control(kind,{...s,nonce}),s.peer.port,s.peer.address);}
 udp.on("message",(bytes,peer)=>{
  const now=performance.now();

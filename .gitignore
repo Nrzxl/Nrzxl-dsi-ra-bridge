@@ -8,3 +8,5 @@ dsi/diagnostics/build/
 *.jsonl
 releases/experimental/build-*/
 out/
+
+logs-030/

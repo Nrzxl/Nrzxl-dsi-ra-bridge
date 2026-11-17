@@ -1,5 +1,5 @@
 name: ARM network experimental 030
-run-name: ARM network 030 / ${{ github.ref_name }} / ${{ github.sha }}
+run-name: ARM network 030 / ${{ github.ref_name }}} / ${{ github.sha }}}
 on:
   push:
     branches:
@@ -9,12 +9,12 @@ on:
       image:
         description: Official devkitPro image tag or previously verified digest
         required: true
-        default: devkitpro/devkitarm:latest
+        default: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
         type: string
 permissions:
   contents: read
 concurrency:
-  group: dsirb-arm-${{ github.ref }}
+  group: dsirb-arm-${{ github.ref }}}
   cancel-in-progress: false
 jobs:
   diagnostic:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout exact dispatched commit
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.sha }}}
           persist-credentials: false
       - name: Protocol and validator regression
         shell: bash
@@ -36,10 +36,29 @@ jobs:
           node tests/protocol-tests.cjs | tee out/logs/protocol-tests.json
           node tests/client-tests.cjs | tee out/logs/client-tests.json
           node tests/nds-format-tests.cjs | tee out/logs/nds-format-tests.json
+      - name: Live protocol regression
+        run: node tests/live-protocol-tests.cjs
+      - name: Checkout pinned rcheevos source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Build and test real local engine and C serializer
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S engine -B out/host-engine -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/host-engine --config Release
+          ctest --test-dir out/host-engine --output-on-failure
+          python3 tests/live-engine-test.py out/host-engine/dsirb_live | tee out/logs/live-engine.json
+          node tests/wire-golden-test.cjs out/host-engine/dsirb_wire | tee out/logs/wire-golden.json
+          node tests/udp-process-test.cjs out/host-engine/dsirb_live | tee out/logs/udp-process.json
       - name: Resolve official image to immutable digest
         id: image
         env:
-          REQUESTED_IMAGE: ${{ inputs.image || 'devkitpro/devkitarm:latest' }}
+          REQUESTED_IMAGE: ${{ inputs.image || 'devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5' }}}
         shell: bash
         run: |
           set -euo pipefail
@@ -52,7 +71,7 @@ jobs:
           printf '%s\n' "$GITHUB_SHA" > out/source-commit.txt
       - name: Two isolated ARM builds
         env:
-          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}}
         shell: bash
         run: |
           set -euo pipefail
@@ -70,7 +89,7 @@ jobs:
           cmp out/first/DSiRABridge_Network_030.nds out/second/DSiRABridge_Network_030.nds
       - name: Package validated output
         env:
-          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}}
         shell: bash
         run: |
           set -euo pipefail
@@ -81,8 +100,52 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DSi_RA_Bridge_030-${{ github.sha }}
+          name: DSi_RA_Bridge_030-${{ github.sha }}}
           path: out/
           if-no-files-found: error
           retention-days: 14
-# Manual only. No releases, deployment, secret inputs or console changes.
+# Experimental branch pushes and explicit dispatch; no releases or console changes.
+
+  windows-receiver:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Compile Windows local engine
+        shell: pwsh
+        run: |
+          cmake -S engine -B out/engine
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          cmake --build out/engine --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          ctest --test-dir out/engine -C Release --output-on-failure
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+      - name: Windows UDP and rcheevos integration
+        shell: pwsh
+        run: |
+          node tests/live-protocol-tests.cjs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          python tests/live-engine-test.py out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          node tests/wire-golden-test.cjs out/engine/Release/dsirb_wire.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          node tests/udp-process-test.cjs out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+          python scripts/package-receiver-030.py --engine out/engine/Release/dsirb_live.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }}
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: DSi_RA_Bridge_Receiver_030-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,3 +1,5 @@
+> Experimento 0.3.3 em branch feat/dsi-ra-bridge-independent-nds-observer-033: [arquitetura e limites](docs/architecture-independent-033.md), [teste físico removível](docs/testing-independent-033.md), [fontes](docs/research-independent-033.md). Hook externo em fixture .nds independente; DSi físico e jogos comerciais ainda NOT_RUN. 0.3.2 mantém PEER TIMEOUT físico aberto. O launcher033 é GPL-2.0-or-later, separado do monitor MIT; consulte [licenças](THIRD_PARTY_033.md).
+
 # DSi RA Bridge0.3.2 — experimental
 
 [Pesquisa e decisão](docs/research-032.md) · [Guia de transporte](docs/network-032.md) · [Protocolo v2](docs/protocol-v2-032.md) · [PoC residente cooperativa](docs/resident-032.md)

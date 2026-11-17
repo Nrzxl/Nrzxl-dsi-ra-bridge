@@ -24,7 +24,11 @@ for name,rom,extra in [
     raw=dump.read_bytes();offset=manifest["watch_address"]-0x02000000
     generation,counter,buttons,checksum,tag=struct.unpack_from("<5I",raw,offset)
     if counter<1800 or generation!=counter*2 or checksum!=counter^buttons^0x9317A55A or tag!=0x47414D33:raise RuntimeError("B state corrupt")
+    # Log-free host elapsed time is not a console CPU benchmark.
     result=dict(name=name,status="PASS",b_counter=counter,emulator_host_seconds=time.monotonic()-begin)
+    if name=="control":
+        control_counter=counter
+    if name=="observed" and counter!=control_counter:raise RuntimeError("fixture counter diverged from uninstrumented control at equal video-frame budget")
     if name=="control":
         if raw[0x200000:0x200008]==b"DSIOBS33":raise RuntimeError("control unexpectedly has monitor")
         result["observer_present"]=False
@@ -34,4 +38,8 @@ for name,rom,extra in [
         (a.output/(name+".json")).write_text(json.dumps(evidence,indent=2)+"\n")
         result.update({k:v for k,v in evidence.items() if k!="records"})
     summary["tests"].append(result)
+for name in ["DSiRABridge_Fixture_B_033.nds","instrumented/Fixture_B_033_observed.nds"]:
+    r=subprocess.run([str(a.engine.resolve().with_name("dsirb_nds_hash")),str((a.build/name).resolve())],capture_output=True,text=True,check=True)
+    summary.setdefault("official_ds_hashes",{})[name]=json.loads(r.stdout)
+if len({x["hash"] for x in summary["official_ds_hashes"].values()})!=2:raise RuntimeError("modified fixture unexpectedly has original game hash")
 summary["status"]="PASS";(a.output/"validation.json").write_text(json.dumps(summary,indent=2)+"\n");print(json.dumps(summary))

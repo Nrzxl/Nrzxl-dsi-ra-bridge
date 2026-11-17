@@ -3,11 +3,14 @@
 static __attribute__((always_inline)) inline uint32_t crc32(const uint8_t*p,unsigned n){
  uint32_t c=0xFFFFFFFFu;for(unsigned i=0;i<n;i++){c^=p[i];for(unsigned j=0;j<8;j++)c=(c>>1)^((c&1)?0xEDB88320u:0);}return c^0xFFFFFFFFu;
 }
+static __attribute__((noinline,target("arm"))) void mark_stack(volatile ObserverState*s){
+ uint32_t sp;__asm__ volatile("mov %0, sp":"=r"(sp)::"memory");
+ if(!s->min_sp||sp<s->min_sp)s->min_sp=sp;
+}
 __attribute__((used,noinline,target("arm"))) void observer_sample(void){
  const volatile ObserverHeader*h=(const volatile ObserverHeader*)OBS_BASE;
  volatile ObserverState*s=(volatile ObserverState*)OBS_STATE;
- uint32_t sp;__asm__ volatile("mov %0, sp":"=r"(sp));
- if(!s->min_sp||sp<s->min_sp)s->min_sp=sp;
+ mark_stack(s);
  if(*(const volatile uint32_t*)OBS_STACK_LOW!=0xA5A5A5A5u)s->guard_failed++;
  uint32_t call=s->calls++;
  if(h->version!=1||h->watch_size!=20||h->watch_address<0x02000000u||
@@ -25,6 +28,7 @@ __attribute__((used,noinline,target("arm"))) void observer_sample(void){
  r.lines=line1>=line0?line1-line0:line1+263-line0;
  if(r.lines>s->max_lines)s->max_lines=r.lines;
  r.crc=crc32((const uint8_t*)&r,28);
+ mark_stack(s); /* sample after the recording path has allocated its frame */
  volatile ObserverRecord*dest=(volatile ObserverRecord*)(OBS_RING+s->stored*32);
  const uint32_t*src=(const uint32_t*)&r;volatile uint32_t*out=(volatile uint32_t*)dest;
  for(unsigned i=0;i<8;i++)out[i]=src[i];

@@ -91,6 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 scripts/package-independent-033.py
+          python3 tests/package-independent-033.py out/DSi_RA_Bridge_SD_033_EMULATOR_VALIDATED_PHYSICAL_NOT_RUN.zip
           sha256sum out/*.zip > out/ARTIFACT_SHA256SUMS.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()

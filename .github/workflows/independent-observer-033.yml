@@ -1,0 +1,139 @@
+name: Independent NDS observer 033
+on:
+  push:
+    branches: [feat/dsi-ra-bridge-independent-nds-observer-033]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  emulator:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: devkitPro/nds-bootloader
+          ref: a0f819008a63f28c4994e7cc8a8ace892450bbb5
+          path: third_party/nds-bootloader
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/melonDS
+          ref: 8a63c88333c8cb4efed76d866872fc3b6ed0de96
+          path: third_party/melonds
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Host guards and existing regression
+        run: |
+          set -euo pipefail
+          mkdir -p out/logs
+          python3 tests/independent-033.py 2>&1 | tee out/logs/host-033.txt
+          node tests/protocol-tests.cjs
+          node tests/nds-format-tests.cjs
+          cmake -S engine -B out/engine -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/engine --parallel 2
+          ctest --test-dir out/engine --output-on-failure
+      - name: Build full NDS and observer twice
+        env:
+          IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          for pass in first second; do
+            for phase in parts launchers; do
+              docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+                --user "$(id -u):$(id -g)" --env HOME=/tmp \
+                --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
+                --mount "type=bind,source=$PWD,target=/src,readonly" \
+                --mount "type=bind,source=$PWD/out,target=/out" -w /work \
+                "$IMAGE" bash /src/scripts/build-independent-033.sh "$pass" "$phase" \
+                2>&1 | tee "out/logs/build-$pass-$phase.txt"
+              if test "$phase" = parts; then
+                d="out/independent-$pass"
+                python3 scripts/instrument-fixture-033.py --fixture "$d/DSiRABridge_Fixture_B_033.nds" \
+                  --symbols "$d/fixture-symbols.txt" --module "$d/observer.bin" \
+                  --module-symbols "$d/observer-symbols.txt" --output "$d/instrumented"
+                python3 scripts/prepare-loader-033.py "$d"
+              fi
+            done
+          done
+          for f in DSiRABridge_Fixture_B_033.nds DSiRABridge_Launcher_A_033.nds DSiRABridge_Launcher_A_033_EMU_ONLY.nds observer.bin instrumented/Fixture_B_033_observed.nds; do
+            cmp "out/independent-first/$f" "out/independent-second/$f"
+          done
+          node scripts/validate-nds.cjs out/independent-first/instrumented/Fixture_B_033_observed.nds out/independent-first/structure.json
+      - name: Compile inspected full DS emulator
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y libenet-dev libglib2.0-dev
+          cmake -S third_party/melonds/tools/dscheevos/headless -B "$RUNNER_TEMP/melonds-build" \
+            -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO_RELEASE=OFF
+          cmake --build "$RUNNER_TEMP/melonds-build" --parallel 2
+      - name: Full ARM9 and ARM7 NDS execution, then A chainloads B
+        run: |
+          set -euo pipefail
+          python3 tests/emulator-independent-033.py \
+            --emulator "$RUNNER_TEMP/melonds-build/melonds-headless" \
+            --build out/independent-first --sd "$RUNNER_TEMP/dsirb-synthetic-sd" --output out/emulation \
+            --engine out/engine/dsirb_live
+      - name: Package experimental SD files and complete GPL source
+        run: |
+          set -euo pipefail
+          python3 scripts/package-independent-033.py
+          sha256sum out/*.zip > out/ARTIFACT_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: DSi_RA_Bridge_033-${{ github.sha }}
+          path: |
+            out/
+            !out/engine/
+          retention-days: 14
+          if-no-files-found: error
+  windows:
+    needs: emulator
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: DSi_RA_Bridge_033-${{ github.sha }}
+          path: out/linux
+      - name: Windows decoding and genuine local rcheevos evaluation
+        shell: pwsh
+        run: |
+          cmake -S engine -B out/engine
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build out/engine --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/independent-033.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python windows/observer-033/decode.py out/linux/emulation/chainload.ram --engine out/engine/Release/dsirb_live.exe --output out/windows-observer.json --provenance NDS_EMULATOR
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/package-windows-observer-033.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_033_Windows-${{ github.sha }}
+          path: |
+            out/windows-observer.json
+            out/*zip
+          if-no-files-found: error
+          retention-days: 14

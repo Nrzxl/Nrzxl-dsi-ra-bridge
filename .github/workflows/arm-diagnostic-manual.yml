@@ -39,7 +39,7 @@ jobs:
       - name: Resolve official image to immutable digest
         id: image
         env:
-          REQUESTED_IMAGE: ${{ inputs.image }}
+          REQUESTED_IMAGE: ${{ inputs.image || 'devkitpro/devkitarm:20241104' }}
         shell: bash
         run: |
           set -euo pipefail

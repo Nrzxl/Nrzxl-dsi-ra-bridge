@@ -55,9 +55,23 @@
     for(let i=0;i<regions.length;i++)for(let j=i+1;j<regions.length;j++)
       need(regions[i].end<=regions[j].offset||regions[j].end<=regions[i].offset,"file segments overlap");
     const title=Array.from(bytes.subarray(0,12),c=>c?String.fromCharCode(c):"").join("");
-    need(title.startsWith("DSIRABRIDGE"),"unexpected diagnostic title");
+    // ndstool 2.3.x can use the generic "HOMEBREW" ROM-header title.
+    // For identity, verify the actual 0x840-byte banner and its checksum.
+    need(title==="HOMEBREW" || title==="DSIRABRIDGE", "unexpected ROM header title");
+    const bannerOffset=u32(0x68);
+    const bannerLength=0x840;
+    need(within(bannerOffset,bannerLength,bytes.length) &&
+      bannerOffset>=headerSize && bannerOffset%4===0,"banner file range");
+    need(u16(bannerOffset)===1,"banner version");
+    need(u16(bannerOffset+2)===crc16(bytes.subarray(bannerOffset+0x20,bannerOffset+0x840)),
+      "banner CRC16");
+    const bannerTitle=Array.from({length:128},(_,i)=>
+      u16(bannerOffset+0x240+i*2)).map(c=>c?String.fromCharCode(c):" ")
+      .join("").split("\n")[0].trim();
+    need(bannerTitle==="DSIRABRIDGE", "unexpected diagnostic banner title");
+    need(used>=bannerOffset+bannerLength,"used ROM size excludes banner");
     return {status:"PASS",scope:"NDS structural checks only",bytes:bytes.length,
-      unitCode,headerSize,title,headerCrc16:u16(0x15E),logoCrc16:u16(0x15C),
+      unitCode,headerSize,title,bannerTitle,headerCrc16:u16(0x15E),logoCrc16:u16(0x15C),
       regions,hardware:"NOT_RUN",officialAchievements:"NOT_RUN"};
   }
   return {crc16,within,validate};

@@ -24,7 +24,7 @@ async function refresh(){
  const select=document.getElementById("ip");
  for(const ip of s.windowsIPs)if(![...select.options].some(o=>o.value===ip)){const o=document.createElement("option");o.value=ip;o.textContent=ip;select.appendChild(o);}
  select.onchange();
- const rb=document.getElementById("reliableRows");rb.replaceChildren();for(const x of s.reliable.sessions){const tr=document.createElement("tr");for(const value of [x.sid+" / "+x.provenance,x.sender?.captured??"—",x.sender?.originalAccepted??"—",x.received,x.recovered,x.missingInferred,x.duplicate,x.evaluated,x.connection+" / "+x.queue]){const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}tr.onclick=()=>document.getElementById("session").value=x.sid;rb.appendChild(tr);}txt("reliable",JSON.stringify(s.reliable,null,2));
+ const rb=document.getElementById("reliableRows");rb.replaceChildren();for(const x of s.reliable.sessions){const tr=document.createElement("tr");for(const value of [x.sid+" / "+x.provenance,x.sender?.captured??"—",x.sender?.originalAccepted??"—",x.received,x.recovered,x.missingResidual,x.duplicate,x.evaluated,x.connection+" / "+x.queue]){const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}tr.onclick=()=>document.getElementById("session").value=x.sid;rb.appendChild(tr);}txt("reliable",JSON.stringify(s.reliable,null,2));
  const body=document.getElementById("sessions");body.replaceChildren();
  for(const x of s.sessions){
   const tr=document.createElement("tr");

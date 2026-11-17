@@ -68,6 +68,8 @@ class ReliableCore{
    this.ack(s);this.pump(s);return;
   }
   if(p.kind===R.K.STATUS){
+   const captured=p.payload.readUInt32LE(0);
+   if(s.status&&(captured<s.status.captured||p.payload.readUInt32LE(28)<s.status.acked||p.payload.readUInt32LE(20)<s.status.retryAttempts)){this.reject("STALE_STATUS",p,peer);return;}
    s.status={state:p.a,target:p.b,nextProduced:p.seq,
     ...Object.fromEntries(["captured","queued","originalAttempts","originalAccepted","sendFailed","retryAttempts",
      "retryAccepted","acked","unacked","queuePeak","backpressure","exhausted","ackRx","ackDuplicate","rtoMs",
@@ -76,7 +78,7 @@ class ReliableCore{
   }
   if(p.kind===R.K.FIN){
    s.finSeen=true;
-   if(p.seq===s.next&&!s.buffer.size&&s.inflight===null&&!s.failed){
+   if(p.seq===s.next&&R.dist(p.seq,s.start)>=(s.status?.captured??s.received)&&!s.buffer.size&&s.inflight===null&&!s.failed){
     s.closed=true;if(this.active===s.sid)this.active=null;this.send(s,R.K.FINACK,s.next);
     this.event({type:"reliable_complete",sid:s.sid,received:s.received,evaluated:s.evaluated,delivered:s.delivered});
    }else{this.reject("FIN_PENDING_OR_MISSING",p,peer);this.ack(s);}return;
@@ -126,9 +128,9 @@ class ReliableCore{
   const rt=s.rtt;
   return {id:s.sid,sid:s.sid,protocol:2,peer:s.peer.address+":"+s.peer.port,source:s.source,mode:s.mode,
    provenance:s.source===2?"SIMULATED":s.manual?"PHYSICAL_CONFIRMED_MANUALLY":"RUNTIME_UNVERIFIED",
-   manualNote:s.manual,connection:s.closed?(s.failed?"FAILED":"COMPLETE"):s.failed?"FAILED":this.now()-s.last>3500?"DISCONNECTED":"ACTIVE",
+   manualNote:s.manual,connection:s.closed?(s.failed?"FAILED":"COMPLETE"):s.failed?"FAILED":s.status?.state===3?"SENDER_FAILED":this.now()-s.last>3500?"DISCONNECTED":"ACTIVE",
    durationMs:this.now()-s.first,configuredHz:s.configuredHz,received:s.received,duplicate:s.duplicates,
-   recovered:s.recovered,missingInferred:s.holes.size,conflicting:s.conflicting,
+   recovered:s.recovered,missingInferred:s.holes.size,missingResidual:Math.max(s.holes.size,(s.status?.captured??s.received)-s.received),conflicting:s.conflicting,
    evaluated:s.evaluated,delivered:s.delivered,nextToEvaluate:s.next,queue:s.buffer.size,queuePeak:s.queuePeak,
    originalDatagrams:s.originalDatagrams,retryDatagrams:s.retryDatagrams,datagrams:s.wire,bytes:s.bytes,
    sender:s.status,receiveToEvaluationMs:{max:s.evalMsMax,mean:s.delivered?s.evalMsSum/s.delivered:null},

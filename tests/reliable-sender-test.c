@@ -31,6 +31,11 @@ static void run(unsigned count,uint32_t start){
  assert(!s.failed&&s.peak<=32);
 }
 int main(void){
+ uint8_t packet[96];RPacket parsed;
+ r_wire(packet,R_ACK,1,1,27,19,7,1,31,false,NULL);
+ assert(r_parse(&parsed,packet,96)&&parsed.kind==R_ACK&&parsed.seq==7&&parsed.a==1);
+ packet[24]^=1;assert(!r_parse(&parsed,packet,96));packet[24]^=1;
+ assert(!r_parse(&parsed,packet,95));packet[5]=99;put32(packet+92,crc32(packet,92));assert(!r_parse(&parsed,packet,96));
  run(600,0);run(1200,0);run(6000,0);run(600,0xFFFFFF00u);
  RSender s;r_init(&s,0);assert(r_offer(&s,data,0));assert(!r_ack(&s,1,0,32,1));assert(!r_ack(&s,0,1,31,1));assert(s.acked==0);
  REntry*e=r_due(&s,0);assert(e);r_sent(&s,e,0,false);

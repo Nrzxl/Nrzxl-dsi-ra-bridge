@@ -73,5 +73,18 @@ if(process.argv[2]){
  eq(s.evaluated,32);eq(s.failed,true);
 }
 
+{
+ let acks=[],events=[];
+ const c=new ReliableCore({now:()=>0,send:(b,p,cb)=>{acks.push(R.decode(b));cb(null);},event:x=>events.push(x),
+  evaluate:(s,r,done)=>done(null,true)});
+ const peer={address:"127.0.0.1",port:9};
+ const ctl=(kind,seq,payload=null)=>R.encode({kind,seq,payload,lo:50,hi:60,source:2,mode:1,a:kind===R.K.HELLO?10:1,b:600});
+ c.receive(ctl(R.K.HELLO,0),peer);
+ const payload=Buffer.alloc(64);payload.writeUInt32LE(600,0);
+ c.receive(ctl(R.K.STATUS,600,payload),peer);
+ const s=[...c.sessions.values()][0];eq(c.summary(s).missingResidual,600);
+ c.receive(ctl(R.K.FIN,0),peer);eq(s.closed,false);eq(events.at(-1).reason,"FIN_PENDING_OR_MISSING");
+}
+
 console.log(JSON.stringify({status:"PASS",checks,sessions:[600,1200,6000],loss:[66,555],
  idempotent:true,ordered:true,ackAfterEvaluation:true,wrap:true,finiteBuffers:true,cGolden:!!process.argv[2]}));

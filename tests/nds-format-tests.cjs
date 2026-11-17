@@ -13,8 +13,13 @@ module.exports=function(N) {
     "DSIRABRIDGE".split("").forEach((c,i)=>b[i]=c.charCodeAt(0));
     [[0x20,0x4000],[0x24,0x02000000],[0x28,0x02000000],[0x2C,0x100],
      [0x30,0x8000],[0x34,0x03800000],[0x38,0x03800000],[0x3C,0x100],
-     [0x80,0x8100],[0x84,0x4000]].forEach(([o,n])=>v.setUint32(o,n,true));
-    b[0x4000]=0xEA;b[0x8000]=0xEA;return crc(b);
+     [0x68,0x8200],[0x80,0x8A40],[0x84,0x4000]].forEach(([o,n])=>v.setUint32(o,n,true));
+    b[0x4000]=0xEA;b[0x8000]=0xEA;
+    const banner=0x8200;
+    v.setUint16(banner,1,true);
+    for(let i=0;i<11;i++)v.setUint16(banner+0x240+2*i,"DSIRABRIDGE".charCodeAt(i),true);
+    v.setUint16(banner+2,N.crc16(b.subarray(banner+0x20,banner+0x840)),true);
+    return crc(b);
   }
   ok(N.crc16(Uint8Array.from([49,50,51,52,53,54,55,56,57]))===0x4B37,"CRC16 known");
   ok(N.validate(synthetic()).status==="PASS","synthetic structure only");
@@ -33,6 +38,13 @@ module.exports=function(N) {
   }
   bad=synthetic();bad[0x12]=1;reject(crc(bad),"unit code");
   bad=synthetic();bad[0]=0;reject(crc(bad),"wrong title");
+  bad=synthetic();bad.fill(0,0,12);bad.set(Buffer.from("HOMEBREW"),0);
+  ok(N.validate(crc(bad)).bannerTitle==="DSIRABRIDGE","generic homebrew header, branded banner");
+  bad=synthetic();bad[0x8200+0x240]^=1;reject(crc(bad),"invalid banner CRC");
+  bad=synthetic();bad[0x8200+0x240]^=1;
+  new DataView(bad.buffer).setUint16(0x8200+2,N.crc16(bad.subarray(0x8200+0x20,0x8200+0x840)),true);
+  reject(crc(bad),"wrong banner title");
+  bad=synthetic();new DataView(bad.buffer).setUint32(0x68,0);reject(crc(bad),"banner omitted");
   bad=synthetic();bad.fill(0,0x4000,0x4100);reject(bad,"empty ARM9");
   bad=synthetic();bad.fill(0,0x8000,0x8100);reject(bad,"empty ARM7");
   bad=synthetic();bad[0x12]=2;new DataView(bad.buffer).setUint32(0x1C0,0x4000,true);

@@ -42,3 +42,12 @@ add_test(NAME transmitter_queue_no_retry COMMAND dsirb_tx_queue)
 add_executable(dsirb_sender ../tests/reliable-sender-cli.c)
 add_executable(dsirb_reliable_test ../tests/reliable-sender-test.c)
 add_test(NAME reliable_sender_bounds_loss_wrap COMMAND dsirb_reliable_test)
+
+# 033 additive: official read-only NDS hash. Existing runtime targets unchanged.
+add_library(rc_nds_hash STATIC
+ "${RC_ROOT}/src/rhash/hash.c" "${RC_ROOT}/src/rhash/hash_rom.c"
+ "${RC_ROOT}/src/rhash/md5.c" "${RC_ROOT}/src/rc_compat.c" "${RC_ROOT}/src/rc_util.c")
+target_include_directories(rc_nds_hash PUBLIC "${RC_ROOT}/include" PRIVATE "${RC_ROOT}/src")
+target_compile_definitions(rc_nds_hash PRIVATE RC_HASH_NO_DISC RC_HASH_NO_ZIP RC_HASH_NO_ENCRYPTED)
+add_executable(dsirb_nds_hash nds_hash_033.c)
+target_link_libraries(dsirb_nds_hash PRIVATE rc_nds_hash)

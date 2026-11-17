@@ -41,6 +41,7 @@ jobs:
           cmake -S engine -B out/engine -DCMAKE_BUILD_TYPE=Release
           cmake --build out/engine --parallel 2
           ctest --test-dir out/engine --output-on-failure
+          python3 tests/nds-hash-033.py out/engine/dsirb_nds_hash
       - name: Build full NDS and observer twice
         env:
           IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
@@ -59,7 +60,7 @@ jobs:
               if test "$phase" = parts; then
                 d="out/independent-$pass"
                 python3 scripts/instrument-fixture-033.py --fixture "$d/DSiRABridge_Fixture_B_033.nds" \
-                  --symbols "$d/fixture-symbols.txt" --module "$d/observer.bin" \
+                  --symbols "$d/fixture-symbols.txt" --sections "$d/fixture-sections.txt" --module "$d/observer.bin" \
                   --module-symbols "$d/observer-symbols.txt" --output "$d/instrumented"
                 python3 scripts/prepare-loader-033.py "$d"
               fi
@@ -122,6 +123,8 @@ jobs:
           cmake -S engine -B out/engine
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build out/engine --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/nds-hash-033.py out/engine/Release/dsirb_nds_hash.exe
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/independent-033.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

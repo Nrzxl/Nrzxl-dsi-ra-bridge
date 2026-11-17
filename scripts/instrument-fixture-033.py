@@ -20,7 +20,7 @@ def crc16(b):
 def u32(b,o):return struct.unpack_from("<I",b,o)[0]
 def word(b,o,v):struct.pack_into("<I",b,o,v)
 def overlap(a,n,b,m):return a<b+m and b<a+n
-def instrument(original, syms, module, module_syms):
+def instrument(original, syms, module, module_syms, sections=None):
     if not (0x200<=len(original)<=4*1024*1024):raise ValueError("fixture size")
     if b"DSI_RA_INDEPENDENT_FIXTURE_033" not in original:raise ValueError("not our independently built fixture")
     if original[0x12] not in (0,2):raise ValueError("unit code")
@@ -40,6 +40,10 @@ def instrument(original, syms, module, module_syms):
     hook_lma=hook
     if "__main_start" in syms and "__main_lma" in syms and syms["__main_start"]<=hook<syms.get("__main_end",0):
         hook_lma=syms["__main_lma"]+hook-syms["__main_start"]
+    if sections:
+        for sec_size,vma,lma in sections:
+            if vma<=hook<hook+4<=vma+sec_size:
+                hook_lma=lma+hook-vma;break
     if not (ram<=hook_lma<ram+size-4 and 0x02000000<=watch<=0x02100000-20 and not watch&3):
         raise ValueError("watch/hook bounds: ram=%08x size=%08x hook=%08x lma=%08x watch=%08x"%(ram,size,hook,hook_lma,watch))
     site=off+hook_lma-ram
@@ -73,11 +77,18 @@ def instrument(original, syms, module, module_syms):
         observer_entry=BASE+64,observer_code_bytes=len(module),records=1200,record_bytes=32,
         arm7_unchanged=True,arm9i_arm7i_unchanged=True,scope="fixture-only external hook; independent full NDS")
     return bytes(patched),evidence
+def section_map(text):
+    result=[]
+    for line in text.splitlines():
+        p=line.split()
+        if len(p)>=6 and p[0].isdigit() and p[1].startswith("."):
+            result.append(tuple(int(x,16) for x in p[2:5]))
+    return result
 def main():
     p=argparse.ArgumentParser();p.add_argument("--fixture",type=Path,required=True);p.add_argument("--symbols",type=Path,required=True)
-    p.add_argument("--module",type=Path,required=True);p.add_argument("--module-symbols",type=Path,required=True)
+    p.add_argument("--sections",type=Path);p.add_argument("--module",type=Path,required=True);p.add_argument("--module-symbols",type=Path,required=True)
     p.add_argument("--output",type=Path,required=True);a=p.parse_args()
-    data,manifest=instrument(a.fixture.read_bytes(),symbols(a.symbols.read_text()),a.module.read_bytes(),symbols(a.module_symbols.read_text()))
+    data,manifest=instrument(a.fixture.read_bytes(),symbols(a.symbols.read_text()),a.module.read_bytes(),symbols(a.module_symbols.read_text()),section_map(a.sections.read_text()) if a.sections else None)
     a.output.mkdir(parents=True,exist_ok=False)
     (a.output/"Fixture_B_033_observed.nds").write_bytes(data)
     (a.output/"instrumentation.json").write_text(json.dumps(manifest,indent=2)+"\n")

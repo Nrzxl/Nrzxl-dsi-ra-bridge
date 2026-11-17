@@ -14,6 +14,8 @@ if test "$phase" = parts; then
  make -C /work/fixture all
  cp /work/fixture/DSiRABridge_Fixture_B_033.nds /work/fixture/DSiRABridge_Fixture_B_033.elf "$dest/"
  arm-none-eabi-nm -n /work/fixture/DSiRABridge_Fixture_B_033.elf > "$dest/fixture-symbols.txt"
+ arm-none-eabi-objdump -h /work/fixture/DSiRABridge_Fixture_B_033.elf > "$dest/fixture-sections.txt"
+ cat "$dest/fixture-sections.txt"
  arm-none-eabi-size /work/fixture/DSiRABridge_Fixture_B_033.elf > "$dest/fixture-size.txt"
  arm-none-eabi-gcc -std=gnu11 -O2 -march=armv5te -mtune=arm946e-s -marm -ffreestanding \
   -fno-stack-protector -fno-unwind-tables -fno-asynchronous-unwind-tables -I/work/observer \

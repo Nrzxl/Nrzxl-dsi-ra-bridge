@@ -1,0 +1,84 @@
+name: ARM diagnostic manual 020
+run-name: ARM diagnostic 020 / ${{ github.ref_name }} / ${{ github.sha }}
+on:
+  workflow_dispatch:
+    inputs:
+      image:
+        description: Official devkitPro image tag or previously verified digest
+        required: true
+        default: devkitpro/devkitarm:20241104
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: dsirb-arm-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact dispatched commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Protocol and validator regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/logs
+          node --version | tee out/logs/node-version.txt
+          python3 --version | tee out/logs/python-version.txt
+          node tests/protocol-tests.cjs | tee out/logs/protocol-tests.json
+          node tests/client-tests.cjs | tee out/logs/client-tests.json
+          node tests/nds-format-tests.cjs | tee out/logs/nds-format-tests.json
+      - name: Resolve official image to immutable digest
+        id: image
+        env:
+          REQUESTED_IMAGE: ${{ inputs.image }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$REQUESTED_IMAGE" =~ ^devkitpro/devkitarm(:20241104|@sha256:[0-9a-f]{64})$ ]] || exit 2
+          docker pull "$REQUESTED_IMAGE" 2>&1 | tee out/logs/image-pull.log
+          digest="$(docker image inspect --format '{{index .RepoDigests 0}}' "$REQUESTED_IMAGE")"
+          [[ "$digest" =~ ^devkitpro/devkitarm@sha256:[0-9a-f]{64}$ ]] || exit 2
+          printf '%s\n' "$digest" > out/image-digest.txt
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$GITHUB_SHA" > out/source-commit.txt
+      - name: Two isolated ARM builds
+        env:
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pass in first second; do
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --tmpfs /tmp:rw,exec --tmpfs /work:rw,exec \
+              --mount "type=bind,source=$PWD,target=/src,readonly" \
+              --mount "type=bind,source=$PWD/out,target=/out" \
+              -w /work "$TOOLCHAIN_IMAGE" bash /src/scripts/build-arm-020.sh "$pass" \
+              2>&1 | tee "out/logs/build-$pass.log"
+            node scripts/validate-nds.cjs "out/$pass/DSiRABridge_Diagnostic_020.nds" \
+              "out/$pass/structure.json" | tee "out/logs/structure-$pass.log"
+          done
+          cmp out/first/DSiRABridge_Diagnostic_020.nds out/second/DSiRABridge_Diagnostic_020.nds
+      - name: Package validated output
+        env:
+          TOOLCHAIN_IMAGE: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/package-sd-020.py --commit "$GITHUB_SHA" --image "$TOOLCHAIN_IMAGE" \
+            | tee out/logs/package.json
+          sha256sum out/*zip > out/ARTIFACT_SHA256SUMS.txt
+      - name: Upload evidence even after failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_020-${{ github.sha }}
+          path: out/
+          if-no-files-found: error
+          retention-days: 14
+# Manual only. No releases, deployment, secret inputs or console changes.

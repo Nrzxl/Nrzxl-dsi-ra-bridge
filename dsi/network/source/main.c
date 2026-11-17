@@ -26,6 +26,7 @@ enum { IDLE, INITIALIZING, ASSOCIATING, WAIT_RECEIVER, READY, INIT_FAILED, LINK_
 static const char *stages[]={"IDLE","INIT","ASSOC/DHCP","WAIT RECEIVER","READY","INIT FAILED","LINK TIMEOUT","PEER TIMEOUT","SOCKET FAILED","STOPPED","LINK LOST","NO SAVED PROFILES"};
 static volatile int stage=IDLE,stop_requested=0,worker_done=1,tx_pending=0;
 static Thread worker;
+static bool worker_started=false;
 static uint8_t worker_stack[32768] __attribute__((aligned(8)));
 static uint8_t tx_slot[64],capture[RECORDS][64];
 static volatile uint32_t session=1,send_errors=0,sent=0,overflows=0,peer_replies=0;
@@ -167,6 +168,7 @@ int main(void){
  while(pmMainLoop()){
   swiWaitForVBlank();scanKeys();frame++;
   uint32_t down=keysDown(),held=keysHeld();
+  if(worker_started&&worker_done){threadJoin(&worker);worker_started=false;}
   if(down&KEY_START){stop_requested=1;streaming=false;if(!exiting){exiting=true;exit_at=tickGetCount();}}
   if(exiting){if(worker_done||elapsed(exit_at,2000000))break;continue;}
   if(down&KEY_B){streaming=false;stop_requested=1;}
@@ -174,7 +176,7 @@ int main(void){
    stop_requested=0;worker_done=0;offline=false;streaming=false;session++;sequence=0;captured=0;
    sent=send_errors=overflows=peer_replies=0;started_at=tickGetCount();
    threadPrepare(&worker,network_worker,NULL,worker_stack+sizeof(worker_stack),MAIN_THREAD_PRIO+1);
-   threadAttachLocalStorage(&worker,NULL);threadStart(&worker);
+   threadAttachLocalStorage(&worker,NULL);worker_started=true;threadStart(&worker);
   }
   if(stage==INITIALIZING&&elapsed(started_at,20000000)){stop_requested=1;snprintf(message,sizeof(message),"INIT timeout. START exits; driver unverified.");}
   if((down&KEY_R)&&worker_done){

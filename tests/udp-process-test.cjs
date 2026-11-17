@@ -14,6 +14,7 @@ async function main(){
  const server=spawn(process.execPath,args,{stdio:["ignore","pipe","pipe"],windowsHide:true});
  let stderr="";server.stderr.on("data",b=>{stderr+=b;});
  const end=Date.now()+20000;
+ let capSocket=null;
  try {
   await new Promise((resolve,reject)=>{
    let output="";const t=setTimeout(()=>reject(Error("receiver startup timeout "+stderr)),5000);
@@ -68,10 +69,29 @@ async function main(){
    await new Promise(r=>setTimeout(r,300));
   }
   assert.ok(state.sessions.every(s=>s.connection==="DISCONNECTED"),"disconnect timeout");
+  const again=spawn(process.execPath,["windows/receiver/simulate.cjs","--port",String(udpPort),"--session","3004","--frames","10"],
+   {stdio:["ignore","pipe","pipe"],windowsHide:true});
+  await finish(again);
+  state=await(await fetch(base+"/state")).json();
+  const reconnect=state.sessions.find(s=>s.session===3004);
+  assert.ok(reconnect&&reconnect.received===10,"new-session reconnect");
+  assert.equal(reconnect.duplicate,0);assert.equal(reconnect.missingInferred,0);
+  assert.equal(reconnect.provenance,"SIMULATED");
+  capSocket=dgram.createSocket("udp4");
+  for(let id=10000;id<10012;id++){
+   await new Promise((resolve,reject)=>capSocket.send(L.control("DSH3",{source:2,mode:1,session:id,nonce:1}),udpPort,"127.0.0.1",e=>e?reject(e):resolve()));
+  }
+  for(let i=0;i<20;i++){
+   state=await(await fetch(base+"/state")).json();
+   if(state.totals.capacityDropped>0)break;
+   await new Promise(r=>setTimeout(r,25));
+  }
+  assert.ok(state.sessions.length<=8&&state.totals.capacityDropped>0,"bounded session capacity");
   console.log(JSON.stringify({status:"PASS",scope:"real UDP between separate Node processes",
-   packets:120,crcRejected:1,duplicate:1,malformedRejected:1,manualSpoofRejected:true,
+   packets:130,crcRejected:1,duplicate:1,malformedRejected:1,manualSpoofRejected:true,reconnect:true,sessionCapacity:true,
    rcheevos:engine?"PASS: real compiled local engine":"NOT_RUN: executable not provided",evidenceDirectory:dir}));
  }finally{
+  if(capSocket)capSocket.close();
   server.kill();await new Promise(r=>setTimeout(r,200));
  }
 }

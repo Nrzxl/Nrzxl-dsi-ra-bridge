@@ -1,3 +1,12 @@
+# DSi RA Bridge 0.3.0 — transporte experimental
+
+A versão Network 030 é independente do diagnóstico 020. Comece por docs/network-030.md.
+A branch feat/dsi-ra-bridge-live-transport-030 compila NDS e receiver Windows via network-experimental.yml.
+Rede física, WPA2 via Flipnote Lenny e monitor persistente continuam NOT_RUN até teste do usuário.
+Não há autenticação RA, jogos reais ou submissões oficiais nesta versão.
+
+## Histórico da versão 020
+
 # DSi RA Bridge — 0.2.0 (experimental)
 
 **Repository:** https://github.com/Nrzxl/Nrzxl-dsi-ra-bridge (PUBLIC; configured by owner)

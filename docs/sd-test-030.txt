@@ -1,26 +1,44 @@
-DSi RA Bridge Network 0.3.0 — EXPERIMENTAL, physical network NOT_RUN
-Preserve the tested diagnostic 020. Do not replace boot.nds, private/, R4
-or existing bootstrap. Back up the internal SD before adding NEW files.
-Copy nds/DSiRABridge_030/DSiRABridge_Network_030.nds from the validated ZIP.
-Cancel any replacement prompt.
-Run Windows receiver on your trusted private LAN:
-node windows/receiver/server.cjs --bind 0.0.0.0
-Open http://127.0.0.1:18217. Download receiver.cfg and copy it to the NEW
-SD folder DSiRABridge_030/receiver.cfg. It contains PC IPv4, port and rate
-only, no wireless credentials. Alternatively edit values with D-pad.
-Use existing saved console Wi-Fi settings; do not weaken your main router.
-Launch Flipnote Lenny → HBMenu → nds/DSiRABridge_030 → Network_030.nds.
-Y connects. Observe INIT → ASSOC/DHCP → WAIT RECEIVER → READY.
-A toggles sampling. Default 10 Hz; up to 600 records. B stops networking.
-R while stopped starts OFFLINE capture without the radio; A pauses/resumes.
-Use R before Y if network initialization is unavailable. X exports the
-controlled capture; OFFLINE is displayed and must be noted with the evidence.
-After STOPPED, X exports NETnnn.drb to DSiRABridge_030/ without overwriting.
-START exits. If a driver timeout occurs, record the exact state and stop.
-Do not install Unlaunch or modify firmware to bypass a failure.
-The modern SDK has DSi/WPA support, but your access path is UNVERIFIED.
-The receiver marks packets RUNTIME_UNVERIFIED. Physical confirmation is
-manual and must record evidence. CRC is not authentication.
-No RetroAchievements account, IDs or unlock requests are used.
-Return NETnnn.drb, a console photo, exported receiver JSON and build manifest.
-Never return NAND, keys, tokens, Wi-Fi configuration or game dumps.
+DSi RA Bridge Network 0.3.0 — EXPERIMENTAL
+O binário foi compilado por devkitARM. A rede no DSi físico ainda precisa
+de validação. Preserve o diagnóstico 020 já testado.
+
+1. Desligue o DSi, retire o SD interno e faça backup no Windows.
+   Não formate, não altere boot.nds, private/, R4 ou nds-bootstrap.
+2. Baixe e extraia o artefato DSi_RA_Bridge_030 da execução indicada.
+   Dentro dele, extraia DSi_RA_Bridge_SD_030_UNVALIDATED.zip.
+   Copie SOMENTE seus arquivos novos para o SD; cancele substituições.
+3. Confira o SHA-256 do .nds em SHA256SUMS.txt e manifest.json.
+   O aplicativo está em:
+   nds/DSiRABridge_030/DSiRABridge_Network_030.nds
+4. No computador, extraia o artefato Receiver_030 em outra pasta nova.
+   Com Node instalado, execute no PowerShell:
+   .\windows\receiver\Start-Receiver.ps1 -Lan
+   Abra http://127.0.0.1:18217.
+5. Escolha o IP do adaptador do Windows na mesma rede do DSi.
+   Baixe receiver.cfg na interface e coloque somente em:
+   SD:/DSiRABridge_030/receiver.cfg
+   O arquivo tem IP privado, porta e Hz; não tem senha ou token.
+6. Ejete o SD e recoloque no DSi desligado. Abra:
+   Flipnote Studio → Flipnote Lenny → HBMenu → nds/DSiRABridge_030.
+7. Y inicia conexão. Observe INIT → ASSOC/DHCP → WAIT RECEIVER → READY.
+   O contador de perfis mostra somente quantos a API conseguiu carregar.
+8. A inicia/pausa transmissão. Padrão: 10 Hz, até 600 amostras.
+   B solicita parada. Depois de STOPPED, X exporta NETnnn.drb sem
+   sobrescrever capturas anteriores. START encerra o aplicativo.
+9. R, com o worker parado, inicia coleta OFFLINE sem usar rádio.
+   Use R antes de Y se a rede não estiver disponível. A pausa/retoma;
+   X exporta a captura. Registre na foto a indicação OFFLINE.
+10. Se o driver não terminar INIT, registre foto/estado, encerre o app
+    e teste R antes de Y. Não instale Unlaunch nem altere firmware.
+11. A interface Windows deve identificar RUNTIME_UNVERIFIED para os
+    pacotes do aplicativo. Confirmação física é manual, com sua nota.
+    CRC não autentica o console; não há submissões ao RetroAchievements.
+12. Devolva a foto, NETnnn.drb, JSON exportado do receiver e manifest.
+    Não envie NAND, OTP, console ID, Wi-Fi, tokens ou jogos.
+
+WPA2 é uma capacidade da stack utilizada, não compatibilidade já provada
+com Flipnote Lenny. Consulte docs/network-030.md no pacote do receiver
+para IP, firewall restrito à LAN e interpretação das etapas.
+
+Os arquivos são removíveis pelo SD com o console desligado. Nenhum
+arquivo existente precisa ser substituído ou restaurado neste teste.

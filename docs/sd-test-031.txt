@@ -1,0 +1,14 @@
+DSi RA Bridge 0.3.1 EXPERIMENTAL — físico NOT_RUN nesta entrega
+O NDS fica em nds/DSiRABridge_031/DSiRABridge_Network_031.nds.
+Adicione apenas a nova pasta031. Preserve020/030, boot.nds, private e _nds.
+Sem NAND, firmware, Unlaunch, jogos ou saves.
+
+Receiver Windows: Start-Receiver-LAN.cmd (sem alterar política PowerShell).
+Painel http://127.0.0.1:18217, UDP18216.
+Escolha IP do PC e baixe receiver.cfg para sd:/DSiRABridge_031/receiver.cfg.
+Abra o NDS031 no HBMenu. Y conecta; READY; A coleta600 (~60s em10Hz).
+B para; aguarde; X exporta sd:/DSiRABridge_031/NETnnn.drb e NETnnn.json.
+Fotografe Tx calls/sent/failed/drops. R inicia coleta offline antes de Y.
+START sai. Exportar antes de iniciar nova sessãoY.
+Devolva DRB + JSON do console + JSON do receiver + JSONL logs-031.
+Nenhuma conquista oficial enviada. Guia completo no receiver/docs/network-031.md.

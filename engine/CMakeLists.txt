@@ -35,3 +35,6 @@ endif()
 
 add_executable(dsirb_wire ../tests/wire-golden.c)
 target_include_directories(dsirb_wire PRIVATE ../dsi/network/include)
+
+add_executable(dsirb_tx_queue ../tests/tx-queue-031.c)
+add_test(NAME transmitter_queue_no_retry COMMAND dsirb_tx_queue)

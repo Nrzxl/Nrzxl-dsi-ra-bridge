@@ -1,3 +1,16 @@
+# DSi RA Bridge 0.3.1 — estabilidade experimental
+Branch: `fix/dsi-ra-bridge-network-stability-031` (base 030 preservada).
+
+[Guia 031](docs/network-031.md) · [Auditoria](docs/audit-031.md) · [Próximo monitor](docs/monitor-031.md)
+
+Executar `Start-Receiver-LAN.cmd` no pacote Windows. Sem alterar política PowerShell.
+Build real e testes: workflow `network-stability-031.yml`; consulte o resultado do commit.
+Hardware 031: **NOT_RUN** até nova evidência. Nenhuma submissão oficial RA.
+Instalação aditiva em `sd:/nds/DSiRABridge_031/`; capturas/config em `sd:/DSiRABridge_031/`.
+Preserve 020/030 e todos os arquivos estáveis do console.
+
+---
+
 # DSi RA Bridge 0.3.0 — transporte experimental
 
 A versão Network 030 é independente do diagnóstico 020. Comece por docs/network-030.md.

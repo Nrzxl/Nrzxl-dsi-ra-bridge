@@ -4,9 +4,9 @@
 ifeq ($(strip $(DEVKITARM)),)
 $(error DEVKITARM must point to devkitARM)
 endif
-TARGET := DSiRABridge_Network_030
+TARGET := DSiRABridge_Network_031
 GAME_TITLE := DSIRABRIDGE
-GAME_SUBTITLE1 := Network 0.3.0
+GAME_SUBTITLE1 := Network 0.3.1
 GAME_SUBTITLE2 := Controlled memory only
 # ds_rules evaluates GAME_TITLE at include time, so set metadata first.
 include $(DEVKITARM)/ds_rules

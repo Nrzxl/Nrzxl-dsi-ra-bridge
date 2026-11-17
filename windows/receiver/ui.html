@@ -1,35 +1,46 @@
 <!doctype html><html lang="pt-BR"><meta charset="utf-8">
-<title>DSi RA Bridge Receiver 0.3.0</title>
-<style>body{background:#101b2a;color:#e8f2ff;font:16px system-ui;margin:32px auto;max-width:1100px;padding:20px}
-h1{font-size:27px}button,a,input{background:#263d58;color:#fff;border:1px solid #5a91c1;border-radius:6px;padding:9px;margin:5px}
-pre{white-space:pre-wrap;background:#19293d;padding:16px}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:10px;border-bottom:1px solid #345}small{color:#adc9e3}</style>
-<h1>DSi RA Bridge Receiver <small>0.3.0</small></h1>
-<p>Diagnóstico controlado. Nenhuma conquista é enviada ao RetroAchievements.</p>
-<p id="network"></p><a id="config" href="/config">Baixar receiver.cfg</a><a href="/export">Exportar resultado</a>
-<table><thead><tr><th>Origem / sessão</th><th>Conexão</th><th>Recebidos / Hz</th><th>Faltantes / duplicados / fora de ordem</th><th>RTT</th></tr></thead><tbody id="sessions"></tbody></table>
+<title>DSi RA Bridge Receiver 0.3.1</title>
+<style>body{background:#101b2a;color:#e8f2ff;font:16px system-ui;margin:26px auto;max-width:1250px;padding:20px}
+h1{font-size:27px}button,a,input,select{background:#263d58;color:#fff;border:1px solid #5a91c1;border-radius:6px;padding:9px;margin:5px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#19293d;padding:16px}table{border-collapse:collapse;width:100%;font-size:14px}td,th{text-align:left;padding:10px;border-bottom:1px solid #345}small{color:#adc9e3}.scroll{overflow:auto}</style>
+<h1>DSi RA Bridge Receiver <small>0.3.1</small></h1>
+<p>Memória controlada. Nenhuma conquista é enviada ao RetroAchievements.</p>
+<p id="network"></p><label>IP Windows <select id="ip"></select></label>
+<a id="config" href="/config">Baixar receiver.cfg</a><a href="/export">Exportar resultado</a>
+<div class="scroll"><table><thead><tr><th>Origem / sessão</th><th>Estado / duração</th><th>Snapshots / Hz configurado / medido</th><th>Faltantes / duplicados / fora de ordem</th><th>RTT atual / mín / média / máx</th></tr></thead><tbody id="sessions"></tbody></table></div>
 <pre id="values">Aguardando HELLO do console ou simulador.</pre>
-<p>Confirmar console físico é uma declaração sua, sem autenticação criptográfica.</p>
+<p>“RUNTIME_UNVERIFIED” significa protocolo de agente; um emulador também pode produzi-lo. Confirmação física é declaração manual por sessão.</p>
 <input id="session" placeholder="ID da sessão"><input id="note" placeholder="Evidência: console, foto, horário"><button id="confirm">Confirmar execução física manualmente</button>
-<pre id="message"></pre><pre id="engine"></pre>
+<pre id="message"></pre><details open><summary>Diagnóstico por causa e mensagens de controle</summary><pre id="diagnostics"></pre></details>
+<details><summary>Últimas ocorrências (até 64)</summary><pre id="recent"></pre></details><pre id="engine"></pre>
 <script>
 const csrf="__CSRF__";
 function txt(id,s){document.getElementById(id).textContent=s;}
+function ms(x){return x===null||x===undefined?"—":x.toFixed(2);}
+document.getElementById("ip").onchange=()=>document.getElementById("config").href="/config?ip="+encodeURIComponent(document.getElementById("ip").value);
 async function refresh(){
  try{
- const s=await(await fetch("/state")).json();txt("network","UDP "+s.listen+" · IPs privados do Windows: "+s.windowsIPs.join(", "));
- if(s.windowsIPs.length)document.getElementById("config").href="/config?ip="+encodeURIComponent(s.windowsIPs[0]);
+ const s=await(await fetch("/state")).json();txt("network","UDP "+s.listen+" · painel local · IPs privados: "+s.windowsIPs.join(", "));
+ const select=document.getElementById("ip");
+ for(const ip of s.windowsIPs)if(![...select.options].some(o=>o.value===ip)){const o=document.createElement("option");o.value=ip;o.textContent=ip;select.appendChild(o);}
+ select.onchange();
  const body=document.getElementById("sessions");body.replaceChildren();
  for(const x of s.sessions){
   const tr=document.createElement("tr");
-  for(const value of [x.provenance+"\n"+x.id,x.connection,x.received+" / "+(x.hz??0).toFixed(1),
-   x.missingInferred+" / "+x.duplicate+" / "+x.reordered,x.rttMs===null?"—":x.rttMs.toFixed(1)+" ms"]){
+  for(const value of [x.provenance+"\n"+x.id,x.connection+" / "+(x.durationMs/1000).toFixed(1)+" s",
+   x.received+" / "+(x.configuredHz??"desconhecido (030)")+" / "+ms(x.hz),
+   x.missingInferred+" / "+x.duplicate+" / "+x.reordered,
+   [x.rttMs,x.rtt?.minMs,x.rtt?.meanMs,x.rtt?.maxMs].map(ms).join(" / ")+" ms"]){
    const td=document.createElement("td");td.textContent=value;tr.appendChild(td);}
   tr.onclick=()=>{document.getElementById("session").value=x.id;};body.appendChild(tr);
  }
  txt("values",JSON.stringify({sessions:s.sessions.map(x=>({id:x.id,frame:x.frame,values:x.values,readTicks:x.readTicks,
-  producerDropped:x.producerDropped,manualNote:x.manualNote})),errors:s.totals,logDropped:s.logDropped,
-  note:"RTT inclui o processamento do DSi. Latência de ida não é medida."},null,2));
- txt("engine",JSON.stringify(s.engine,null,2));
+  producerDropped:x.producerDropped,datagrams:x.datagrams,bytes:x.bytes,packetsHz:x.packetsHz,manualNote:x.manualNote})),
+  note:"Hz medido: média dos snapshots aceitos. Pacotes/s inclui controles e duplicatas. RTT inclui processamento; ida não é medida. ACTIVE indica agente, não garante streaming."},null,2));
+ txt("diagnostics",JSON.stringify({totals:s.totals,controls:s.sessions.map(x=>({id:x.id,...x.controls})),
+  logDropped:s.logDropped,diagnosticLogSuppressed:s.diagnosticsSuppressed,
+  note:"HELLO periódico e PONG repetido conhecido têm contadores próprios. Duplicatas de snapshots nunca alimentam o motor. Os totais continuam contando mesmo quando o log detalhado é limitado."},null,2));
+ txt("recent",JSON.stringify(s.recentDiagnostics,null,2));txt("engine",JSON.stringify(s.engine,null,2));
  }catch(e){txt("message","Receiver indisponível: "+e.message);}
 }
 document.getElementById("confirm").onclick=async()=>{

@@ -6,7 +6,7 @@ Get-Command node -ErrorAction Stop | Out-Null
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $bind='127.0.0.1'
 if($Lan){$bind='0.0.0.0'}
-$argsNode=@((Join-Path $PSScriptRoot 'server.cjs'),'--bind',$bind,'--port',"$Port",'--web',"$WebPort",'--logDir',(Join-Path $root 'logs-030'))
+$argsNode=@((Join-Path $PSScriptRoot 'server.cjs'),'--bind',$bind,'--port',"$Port",'--web',"$WebPort",'--logDir',(Join-Path $root 'logs-031'))
 $engine=Join-Path $root 'bin\dsirb_live.exe'
 if(Test-Path -LiteralPath $engine){$argsNode+=@('--engine',$engine)}
 Write-Host "Receiver: http://127.0.0.1:$WebPort"

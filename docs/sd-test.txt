@@ -1,0 +1,43 @@
+Guia antigo 010: mantido como histórico.
+Para a versão atual use docs/sd-test-020.txt somente após build PASS.
+
+DSi RA Bridge 0.1.0 — roteiro condicionado ao build PASS
+ESTA ENTREGA DE FONTES AINDA NÃO CONTÉM .NDS COMPILADO.
+Só usar este roteiro após gerar e verificar o binário pelo build.
+Não selecionar fwTool, DSiWareHax ou instalador de Unlaunch.
+
+1. Desligar o DSi antes de retirar o SD interno. Não usar o microSD do R4.
+2. No Windows, copiar os arquivos atuais do SD para uma pasta de backup.
+   Não formatar. Confirmar que há espaço livre para o novo diagnóstico.
+3. Copiar apenas os itens NOVOS da pasta sd-root para o SD.
+   Se houver pergunta para substituir qualquer arquivo, CANCELAR.
+   Esperado: sd:/nds/DSiRABridge_010/DSiRABridge_Diagnostic_010.nds.
+4. Ejetar o SD no Windows. Recolocar no DSi desligado.
+5. Abrir Flipnote Lenny da forma que já funciona e entrar no HBMenu.
+6. Navegar nds → DSiRABridge_010 → DSiRABridge_Diagnostic_010.nds.
+7. Anotar/fotografar a tela antes de coletar: Mode, Expected RAM,
+   Owned buffer, Bounds checks e Errors.
+   Modelo/tamanho total não são sondados independentemente.
+8. Pressionar A. A coleta avança até 600 registros e para.
+   Durante o teste apertar direcional e A/B com cuidado:
+   A reinicia a coleta; B pausa. Para uma captura limpa, deixar terminar.
+9. Esperado para avançar: Errors=0, Bounds checks=7, Samples=600/600 STOP.
+   Se Errors>0, guardar a tela; não testar jogos comerciais.
+10. Pressionar X uma vez. Só esse botão tenta escrever o snapshot no SD.
+    A tela deve indicar Saved 38400 bytes, CAP file closed.
+    Se aparecer FAT unavailable ou Internal sd:/ unavailable, anotar.
+    Não mudar de exploit, instalar Unlaunch ou reformatar para contornar.
+11. START tenta retornar ao ambiente homebrew. Se não retornar, desligar
+    após confirmar que nenhuma gravação está em curso.
+12. Com o DSi desligado, levar o SD ao PC e devolver
+    DSiRABridge_010/CAP000.drb (ou o CAP com índice criado),
+    foto da tela e o resultado do replay. Não enviar NAND, OTP,
+    console ID, configurações Wi-Fi, tokens ou jogos.
+13. Para mais tempo de teste, repetir capturas e exportações com novos
+    índices. Esta fase não certifica estabilidade de longas sessões.
+14. Recuperação: com console desligado, remover somente o novo .nds,
+    o texto DSiRABridge_TEST.txt e a pasta de capturas deste projeto.
+    Nenhum arquivo pré-existente deve ter sido substituído.
+
+Antes de existir build PASS, devolver somente logs de compilação.
+Não há aplicativo pronto para copiar ao SD nesta entrega inicial.

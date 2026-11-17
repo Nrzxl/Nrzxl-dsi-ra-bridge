@@ -1,0 +1,23 @@
+{
+  "sourceFilesRecovered": 33,
+  "protocol": {
+    "status": "PASS",
+    "checks": 632,
+    "runtime": "V8"
+  },
+  "client": {
+    "status": "PASS",
+    "checks": 7,
+    "runtime": "V8; mocked filesystem"
+  },
+  "ndsHeader": {
+    "status": "PASS",
+    "checks": 25,
+    "scope": "synthetic NDS header unit checks in V8; not an ARM build"
+  },
+  "arm": "BLOCKED",
+  "windowsUDP": "NOT_RUN",
+  "gitHubRepository": "404",
+  "gitHubActions": "NOT_RUN",
+  "physicalDsi": "NOT_RUN"
+}

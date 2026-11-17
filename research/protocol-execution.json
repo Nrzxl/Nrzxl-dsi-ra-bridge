@@ -1,0 +1,9 @@
+{
+  "status": "PASS",
+  "checks": 632,
+  "scope": "protocol/bridge.cjs in JavaScript runtime",
+  "environment": "orchestration V8; no shell/native runtime",
+  "firstAttempt": "FAIL: TextEncoder unavailable; test vector changed to literal bytes",
+  "armBuild": "BLOCKED",
+  "physicalDSi": "NOT_RUN"
+}

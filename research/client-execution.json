@@ -1,0 +1,5 @@
+{
+  "status": "PASS",
+  "checks": 7,
+  "scope": "CLI unit integration; mocked filesystem, no OS/UDP"
+}

@@ -1,0 +1,44 @@
+DSi RA Bridge 0.2.0 — teste em DSi XL / Flipnote Lenny
+Este guia só pode ser usado DEPOIS de existir um build ARM PASS.
+O pacote de fontes não contém .nds compilado.
+Não abrir fwTool, instalar Unlaunch ou atualizar firmware.
+
+1. Desligue o DSi e retire somente o SD interno. Não altere o R4.
+2. No Windows, copie o conteúdo atual do SD para uma pasta de backup.
+   Não formate. Não altere boot.nds ou private/.
+3. Abra o ZIP DSi_RA_Bridge_SD_020_UNVALIDATED.zip gerado pelo build.
+   Ele deve conter nds/DSiRABridge_020/DSiRABridge_Diagnostic_020.nds,
+   DSiRABridge_TEST.txt, manifest.json e SHA256SUMS.txt.
+4. Verifique o hash do .nds com Get-FileHash -Algorithm SHA256.
+   Compare com SHA256SUMS.txt e binary_sha256 de manifest.json.
+5. Copie SOMENTE os arquivos novos para a raiz do SD. Se houver
+   qualquer pergunta de substituição, cancele. Preserve o pacote antigo.
+6. Ejete no Windows e coloque o SD no DSi desligado.
+7. Abra Flipnote Studio → Flipnote Lenny → HBMenu.
+8. Entre em nds → DSiRABridge_020 → DSiRABridge_Diagnostic_020.nds.
+9. Anote Mode, Bounds checks e Errors. A indicação DS/DSi é do runtime,
+   não uma identificação independente do modelo físico.
+10. Pressione A uma vez e deixe concluir. A reinicia; B pausa.
+    Esperado para avançar: Bounds checks=7; Errors=0; Samples=600 STOP.
+11. Pressione X. Esperado: Saved 38400 bytes; CAP file closed.
+    Se FAT ou sd:/ estiver indisponível, anote o erro e pare.
+    Não modifique o console para contornar.
+12. START tenta encerrar pelo mecanismo do loader. O retorno ao HBMenu
+    depende do bootstub; não é garantido. Se necessário, desligue somente
+    depois de a exportação terminar e o arquivo estar fechado.
+13. Com o DSi desligado, leve o SD ao Windows. Copie
+    DSiRABridge_020/CAP000.drb (ou outro índice) para o computador.
+14. Abra windows/bridge/viewer.html do projeto e escolha a captura.
+    Alternativa: node windows/bridge/bridge.cjs replay --file CAP000.drb
+    Ou: python windows/bridge/replay.py CAP000.drb
+15. Devolva o .drb, foto da tela e manifest.json do build usado.
+    Não envie NAND, OTP, console ID, configurações Wi-Fi, tokens ou ROMs.
+
+São valores controlados do diagnóstico, não dados de jogo comercial.
+O diagnóstico não testa Wi-Fi nem monitor persistente.
+Errors>0 ou travamento impedem avançar para jogos comerciais.
+
+Remoção: com o console desligado, remova somente a pasta nova
+nds/DSiRABridge_020, a pasta de capturas DSiRABridge_020 e os metadados
+novos deste teste. Nenhum arquivo anterior precisa ser restaurado se
+não houve substituição.

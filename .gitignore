@@ -1,0 +1,10 @@
+build-engine/
+third_party/
+dsi/diagnostics/build/
+*.nds
+*.elf
+*.map
+*.drb
+*.jsonl
+releases/experimental/build-*/
+out/

@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><title>DSi RA Bridge · Diagnóstico</title>
+<style>
+body{font:17px system-ui;background:#111c2c;color:#e5f2ff;max-width:900px;margin:48px auto;padding:20px}
+input,button{padding:14px;background:#244466;color:white;border:1px solid #77b7e8;border-radius:8px}
+pre{white-space:pre-wrap;background:#19283c;padding:20px;border-radius:12px}
+small{color:#a6c3df}
+</style>
+<h1>DSi RA Bridge <small>0.2.0</small></h1>
+<p>Importação de diagnóstico controlado. Nenhuma conquista oficial é enviada.</p>
+<p>Um pacote com origem “runtime” pode ter vindo de emulador. A origem não autentica hardware.</p>
+<input id="file" type="file" accept=".drb"><button id="sim">Gerar teste simulado</button>
+<pre id="result">Escolha CAP000.drb ou execute o teste simulado.</pre>
+<script src="../../protocol/bridge.cjs"></script>
+<script>
+"use strict";
+const out=document.getElementById("result");
+function render(bytes,origin) {
+  try {
+    if(!bytes.length||bytes.length%64||bytes.length>64*60000)throw Error("Tamanho inválido/truncado");
+    const stats=new DSRB.Stats();let rejected=0,accepted=0,last=null,r=null;
+    for(let i=0;i<bytes.length;i+=64){
+      try{
+        last=DSRB.decode(bytes.subarray(i,i+64));
+        r=stats.push(last,i/64);if(r.acceptedNow)accepted++;
+      }catch(_){rejected++;}
+    }
+    out.textContent=JSON.stringify({origin,accepted,rejected,last,stats:r,
+      timing:"Hz de replay não representa Hz do console. Latência indisponível.",
+      retroachievements:"SEM CONEXÃO; zero submissões"},null,2);
+  }catch(e){out.textContent="ERRO: "+e.message;}
+}
+document.getElementById("file").onchange=async e=>{
+  const file=e.target.files[0];if(!file)return;
+  if(file.size>64*60000){out.textContent="Arquivo grande demais";return;}
+  render(new Uint8Array(await file.arrayBuffer()),"ARQUIVO IMPORTADO — origem não verificada");
+};
+document.getElementById("sim").onclick=()=>{
+  const b=new Uint8Array(64*600);
+  for(let i=0;i<600;i++)b.set(DSRB.encode({source:2,seq:i,counter:i}),i*64);
+  render(b,"SIMULAÇÃO LOCAL");
+};
+</script></html>

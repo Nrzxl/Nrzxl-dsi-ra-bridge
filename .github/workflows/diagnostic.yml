@@ -1,0 +1,13 @@
+name: Diagnostic only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node tests/protocol-tests.cjs
+      - run: node tests/client-tests.cjs
+# No releases or automatic publishing. ARM build is explicit and local.

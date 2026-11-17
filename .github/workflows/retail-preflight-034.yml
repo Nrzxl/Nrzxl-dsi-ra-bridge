@@ -1,0 +1,36 @@
+name: Retail preflight 034 (synthetic, no ROM)
+on:
+  push:
+    branches:
+      - feat/dsi-ra-bridge-retail-preflight-034
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  safe-preflight:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Python offline synthetic NDS tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 --version
+          python3 tests/retail_preflight_034.py
+          python3 scripts/retail_preflight_034.py --help
+      - name: Python offline synthetic NDS tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python --version
+          python tests/retail_preflight_034.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python scripts/retail_preflight_034.py --help
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

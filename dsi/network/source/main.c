@@ -117,7 +117,7 @@ done:
 }
 static void sample(uint32_t buttons){
  if(captured>=RECORDS){streaming=false;snprintf(message,sizeof(message),"Buffer full. B stop, then X export.");return;}
- controlled[0]=0x44534931u;controlled[1]=frame;controlled[2]=buttons;controlled[3]=frame^buttons^0xA5A55A5Au;
+ controlled[0]=0x44534931u;controlled[1]=captured;controlled[2]=buttons;controlled[3]=captured^buttons^0xA5A55A5Au;
  uint8_t*p=capture[captured];uint32_t words[4];
  u64 t=tickGetCount();
  for(unsigned i=0;i<4;i++)words[i]=controlled[i];

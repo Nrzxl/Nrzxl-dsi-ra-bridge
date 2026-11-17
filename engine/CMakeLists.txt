@@ -13,7 +13,7 @@ if(NOT RC_HEAD STREQUAL "1433173220a7eaede6a9ed7a18e94117be1821e0")
 endif()
 file(GLOB RC_RUNTIME "${RC_ROOT}/src/rcheevos/*.c")
 add_library(rc_runtime STATIC ${RC_RUNTIME}
-  "${RC_ROOT}/src/rc_compat.c" "${RC_ROOT}/src/rc_util.c")
+  "${RC_ROOT}/src/rc_compat.c" "${RC_ROOT}/src/rc_util.c" "${RC_ROOT}/src/rhash/md5.c")
 target_include_directories(rc_runtime PUBLIC "${RC_ROOT}/include" PRIVATE "${RC_ROOT}/src")
 target_compile_definitions(rc_runtime PRIVATE RC_DISABLE_LUA)
 set_property(TARGET rc_runtime PROPERTY C_STANDARD 99)

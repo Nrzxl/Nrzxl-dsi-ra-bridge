@@ -87,7 +87,7 @@ Pacotes tardios não são reenviados para o motor fora da ordem.
 ## rcheevos experimental
 O executável dsirb_live usa rc_runtime oficial no commit
 1433173220a7eaede6a9ed7a18e94117be1821e0. Não inclui rc_client, HTTP ou login.
-As condições locais usam IDs de teste 1/2: contador >=120 e >=300.
+As condições locais usam IDs de teste 1/2: contador de amostras >=120 e >=300 (~12 e ~30 s a 10 Hz).
 Uma condição medida mostra progresso. O motor recebe só a primeira sessão
 selecionada automaticamente; seu ID aparece na interface. Reinicie o
 receiver para escolher outra sessão antes do teste físico.

@@ -108,3 +108,9 @@ continuava recebendo no ensaio local (600 + 1.144 registros no instante
 do encerramento). O deadline do teste foi ampliado para 60s para tolerar
 a resolução de timers e escalonamento do Windows. Não é correção de rádio.
 O resultado final deve ser verificado no run do commit posterior.
+
+Segundo CI: UDP e motor passaram nos dois sistemas; o teste do CMD empacotado
+revelou MODULE_NOT_FOUND. Causa reproduzida localmente: SHIFT também muda
+%0, então %~dp0 deixava de apontar para a pasta do iniciador interno.
+Removido SHIFT (não havia argumentos adicionais a consumir) e preservadas
+quebras CRLF. Este defeito foi detectado antes da entrega, não no DSi030.

@@ -8,7 +8,6 @@ if errorlevel 1 (
 )
 set "BIND=127.0.0.1"
 if /I "%~1"=="--lan" set "BIND=0.0.0.0"
-if /I "%~1"=="--lan" shift
 echo Receiver 0.3.1: http://127.0.0.1:18217
 echo UDP %BIND%:18216. Nenhuma politica PowerShell e alterada.
 if exist "%~dp0..\..\bin\dsirb_live.exe" (

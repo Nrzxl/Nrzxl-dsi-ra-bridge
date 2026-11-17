@@ -10,6 +10,9 @@ try:
     deadline = time.monotonic() + 15
     state = None
     while time.monotonic() < deadline:
+        if p.poll() is not None:
+            output, _ = p.communicate(timeout=2)
+            raise RuntimeError("CMD exited before HTTP startup: " + output.decode(errors="replace"))
         try:
             with urllib.request.urlopen("http://127.0.0.1:18217/state", timeout=1) as r:
                 state = json.load(r)

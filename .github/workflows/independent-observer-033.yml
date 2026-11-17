@@ -35,6 +35,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/logs
+          python3 tests/memory-map-033.py
+          python3 tests/hello-only-033.py
           python3 tests/independent-033.py 2>&1 | tee out/logs/host-033.txt
           node tests/protocol-tests.cjs
           node tests/nds-format-tests.cjs
@@ -125,6 +127,10 @@ jobs:
           cmake --build out/engine --config Release
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/nds-hash-033.py out/engine/Release/dsirb_nds_hash.exe
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/memory-map-033.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/hello-only-033.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python tests/independent-033.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

@@ -29,13 +29,19 @@ Usa os primeiros 4 MiB, sem depender de RAM estendida, DSP, SDIO Wi-Fi, Unlaunch
 A emulação DSi exigiria firmware/BIOS/NAND privados e escrita numa cópia NAND; não foi escolhida nesta fase. Emulação DS com FreeBIOS não exige esses arquivos. R4 normalmente entra em modo DS com DLDI e sem acesso equivalente ao SD interno: fora do caminho físico desta PoC.
 
 ## DScheevos e futuro retail
-DScheevos usa uma integração própria com nds-bootstrap: cardengines/hooks ARM7/ARM9, chamada por VBlank e trabalho no idle/OS_Halt, módulo reservado, MPU/cache e pilha próprios. Não se torna residente por apenas abrir um segundo homebrew. Reserva de memória e loader são partes do mesmo projeto; é preciso validar as permissões e footprint em cada jogo.
+DScheevos usa uma integração própria com nds-bootstrap: cardengines/hooks ARM7/ARM9, contagem de VBlank pelo ARM7 e captura/avaliação no idle/OS_Halt, módulo reservado, MPU/cache e pilha próprios. Não se torna residente por apenas abrir um segundo homebrew. Reserva de memória e loader são partes do mesmo projeto; é preciso validar as permissões e footprint em cada jogo.
 O próximo passo retail deve usar uma variante GPL separada do nds-bootstrap, em arquivos novos e launcher explícito, com ROM legítima somente leitura, saves experimentais separados e nenhum patch na instalação estável. Não aplicar o patcher desta fixture a jogos.
 
 ## Caminho oficial
 1. Preservar o arquivo original para identificação; o hash RA Nintendo DS não é SHA256/MD5 genérico do arquivo e não deve ser calculado sobre B instrumentado.
 2. Usar rc_hash_generate_from_file com RC_CONSOLE_NINTENDO_DS oficial, com algoritmos/versão fixos e resultados de teste. O hash só resolve título/conjunto; não prova execução legítima.
-3. Implementar mapa RA: RAM principal DS, ARM7 e DTCM conforme rcheevos/cliente de referência, sem somar cegamente 0x02000000. Capturar ponteiros/dados consistentemente por frame; cache ARM9 e mirrors precisam de tratamento.
+3. Implementar mapa RA: RAM principal DS e DTCM conforme rcheevos/cliente de referência, sem somar cegamente 0x02000000. Capturar ponteiros/dados consistentemente por frame; cache ARM9 e mirrors precisam de tratamento.
 4. Definições podem exigir endereços indiretos dinâmicos e delta/prior/hitcount; uma lista estática de endereços não cobre tudo. Perda ou salto de frame exige invalidar/suspender a avaliação, não inventar frames.
 5. Windows hospeda rcheevos/rc_client e HTTPS, credenciais somente locais; login/token, identificação, sessão e eventos oficiais precisam de integração e revisão com RetroAchievements. Não usar web API de consulta como atalho para awardachievement.
 6. Só habilitar submissão depois de validar execução contínua de jogo real e conformidade do cliente. Este protótipo não faz requisições oficiais, não autentica e não concede conquistas.
+
+No commit auditado, start.s mantém vblank_entry como stub bx lr. O ARM9 não executa o módulo no IRQ do jogo: o contador ARM7 é consultado em vblank_poll, a cópia é preparada no último halt e o módulo usa pilha própria, verificando MPU e reentrada. Frames sem idle repetem a última cópia, e Remember/Recall pode recorrer a leitura live posterior; esses desvios precisam de comparação com o cliente de referência antes de uso oficial. As afirmações upstream de baixo impacto em jogos são medições deles em emulação, não validação nossa.
+
+A presença de acesso SD via Lenny é compatível com o caminho documentado pelo DSi Guide (https://dsi.cfw.guide/launching-the-flipnote-exploit.html), mas não prova SCFG/MBK/SDIO suficientes para o módulo retail. Não se conclui que Unlaunch seja necessário nem que suas permissões estejam disponíveis. Nesta PoC não se tenta desbloquear SCFG. O launcher físico falha explicitamente se o modo/filesystem não atenderem.
+
+Mapa implementado como ferramenta host pura (memory_map.py), testado com snapshots sintéticos: RA0000000–03FFFFF = main RAM DS; 0400000–0FFFFFF é lacuna DS; RA1000000–1003FFF = DTCM de 16 KiB. DSi amplia main RAM para16 MiB. 0x0E000000 em consoleinfo.c é endereço pseudo-nativo para DTCM, não um ponteiro físico de leitura no DSi. A base real vem de CP15. ARM7 WRAM não integra esse mapa oficial. A PoC ARM9 atual só observa game_state, ainda não captura essas regiões completas nem avalia conjuntos oficiais.

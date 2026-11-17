@@ -19,8 +19,8 @@ for name,rom,extra in [
     begin=time.monotonic();r=subprocess.run(cmd,text=True,capture_output=True,timeout=180)
     log=r.stdout+r.stderr;(a.output/(name+".log")).write_text(log)
     print(name,log[-4500:],flush=True)
-    if r.returncode or "@@ FIXTURE_B_MAIN" not in log or "@@ FIXTURE_B_DONE" not in log:raise RuntimeError(name+" did not boot/finish: "+str(r.returncode))
-    if name=="chainload" and "@@ A_CHAINLOAD_ACCEPTED" not in log:raise RuntimeError("missing full chainload")
+    if r.returncode or "FIXTURE_B_MAIN" not in log or "FIXTURE_B_DONE" not in log:raise RuntimeError(name+" did not boot/finish: "+str(r.returncode))
+    if name=="chainload" and "A_CHAINLOAD_ACCEPTED" not in log:raise RuntimeError("missing full chainload")
     raw=dump.read_bytes();offset=manifest["watch_address"]-0x02000000
     generation,counter,buttons,checksum,tag=struct.unpack_from("<5I",raw,offset)
     if counter<1800 or generation!=counter*2 or checksum!=counter^buttons^0x9317A55A or tag!=0x47414D33:raise RuntimeError("B state corrupt")

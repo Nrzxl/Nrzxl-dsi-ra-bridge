@@ -32,6 +32,7 @@ static void raw_export(void){
  /* Export only this tagged, bounded lab window. Never general RAM or a stack. */
  const uint8_t*window=(const uint8_t*)0x02200000;
  if(memcmp(window,"DSIOBS33",8)){iprintf("No tagged lab window. Nothing saved.\n");return;}
+ if(*(const volatile uint32_t*)0x02202008<1200){iprintf("Wait for 1200 frames before X.\n");return;}
  struct stat st;
  if(!fatInitDefault()||stat("sd:/",&st)||!S_ISDIR(st.st_mode)){iprintf("sd:/ unavailable; no other device used.\n");return;}
  const char*dir="sd:/DSiRABridge_033";if(mkdir(dir,0777)&&errno!=EEXIST)return;
@@ -40,7 +41,7 @@ static void raw_export(void){
  if(fd<0){iprintf("Exclusive create failed.\n");return;}
  uint32_t done=0;
  /* The monitor stops storing records at 1200. Require that stable phase. */
- if(*(const volatile uint32_t*)0x02202008<1200){close(fd);iprintf("Wait for 1200 frames before X.\n");return;}
+
  while(done<0xD000){int n=write(fd,window+done,0xD000-done);if(n<=0)break;done+=(unsigned)n;}
  int rc=close(fd);iprintf(done==0xD000&&!rc?"Tagged window saved.\n":"Export FAILED.\n");
 }

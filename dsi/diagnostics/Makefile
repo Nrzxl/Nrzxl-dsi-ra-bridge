@@ -4,12 +4,13 @@
 ifeq ($(strip $(DEVKITARM)),)
 $(error DEVKITARM must point to devkitARM)
 endif
-include $(DEVKITARM)/ds_rules
 TARGET := DSiRABridge_Diagnostic_020
-ARCH := -march=armv5te -mtune=arm946e-s
 GAME_TITLE := DSIRABRIDGE
 GAME_SUBTITLE1 := Diagnostic 0.2.0
 GAME_SUBTITLE2 := Controlled memory only
+# ds_rules evaluates GAME_TITLE at include time, so set metadata first.
+include $(DEVKITARM)/ds_rules
+ARCH := -march=armv5te -mtune=arm946e-s
 CFLAGS := -std=gnu11 -O2 -g -ffile-prefix-map=/work=. -Wall -Wextra -ffunction-sections -fdata-sections $(ARCH) $(INCLUDE) -DARM9
 CXXFLAGS := $(CFLAGS)
 LDFLAGS = -specs=ds_arm9.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)

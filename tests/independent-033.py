@@ -25,6 +25,9 @@ class Tests(unittest.TestCase):
         b,s,m,ms=fixture();out,e=patch.instrument(b,s,m,ms)
         self.assertEqual(out[0x1000:0x1100],b[0x1000:0x1100]);self.assertEqual(struct.unpack_from("<I",out,0x24)[0],0x02000000)
         self.assertEqual(e["arm9_expanded_size"],0x220000);self.assertNotEqual(out,b)
+    def test_calico_vma_lma(self):
+        b,s,m,ms=fixture();s.update(game_vblank=0x02000020,__main_start=0x02000000,__main_end=0x02000080,__main_lma=0x02000020)
+        out,e=patch.instrument(b,s,m,ms);self.assertEqual(e["hook_load_address"],0x02000040);self.assertEqual(e["hook_address"],0x02000020)
     def test_unknown_rejected(self):
         b,s,m,ms=fixture();b[0x300:0x340]=bytes(64)
         with self.assertRaises(ValueError):patch.instrument(b,s,m,ms)

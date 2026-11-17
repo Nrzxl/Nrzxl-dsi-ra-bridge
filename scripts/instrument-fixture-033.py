@@ -35,8 +35,14 @@ def instrument(original, syms, module, module_syms):
     for name in ["__bss_start__","__bss_end__","__heap_start_ntr","__heap_start_twl"]:
         if name in syms and BASE<=syms[name]<END:raise ValueError("startup clear/heap overlaps")
     hook,watch=syms["game_vblank"],syms["game_state"]
-    if not (ram<=hook<ram+size-4 and 0x02000000<=watch<=0x02100000-20 and not watch&3):raise ValueError("watch/hook bounds")
-    site=off+hook-ram
+    # Modern Calico relocates .main from its header load address to a lower VMA.
+    # Patch the verified file LMA, while the branch/resume use the runtime VMA.
+    hook_lma=hook
+    if "__main_start" in syms and "__main_lma" in syms and syms["__main_start"]<=hook<syms.get("__main_end",0):
+        hook_lma=syms["__main_lma"]+hook-syms["__main_start"]
+    if not (ram<=hook_lma<ram+size-4 and 0x02000000<=watch<=0x02100000-20 and not watch&3):
+        raise ValueError("watch/hook bounds: ram=%08x size=%08x hook=%08x lma=%08x watch=%08x"%(ram,size,hook,hook_lma,watch))
+    site=off+hook_lma-ram
     if u32(original,site)!=PUSH:raise ValueError("unrelocatable/unknown displaced instruction")
     if not (64<len(module)<=4096 and module[:8]==b"DSIOBS33"):raise ValueError("module bounded header")
     if module_syms["observer_entry"]!=BASE+64:raise ValueError("module entry")
@@ -50,7 +56,7 @@ def instrument(original, syms, module, module_syms):
     if delta%4 or not -(1<<25)<=delta<(1<<25):raise ValueError("ARM branch reach")
     expanded=bytearray(END-ram)
     expanded[:size]=original[off:off+size]
-    word(expanded,hook-ram,0xEA000000|((delta>>2)&0xFFFFFF))
+    word(expanded,hook_lma-ram,0xEA000000|((delta>>2)&0xFFFFFF))
     expanded[BASE-ram:END-ram]=window
     patched=bytearray(original);new_off=(len(patched)+0x1ff)&~0x1ff
     patched.extend(b"\0"*(new_off-len(patched)));patched.extend(expanded)
@@ -62,7 +68,7 @@ def instrument(original, syms, module, module_syms):
     evidence=dict(version="0.3.3",original_sha256=hashlib.sha256(original).hexdigest(),
         observed_sha256=hashlib.sha256(patched).hexdigest(),observed_crc32=zlib.crc32(patched),
         observed_bytes=len(patched),arm9_original_entry=entry,arm9_original_size=size,
-        arm9_expanded_size=len(expanded),arm9_ram=ram,hook_address=hook,watch_address=watch,
+        arm9_expanded_size=len(expanded),arm9_ram=ram,hook_address=hook,hook_load_address=hook_lma,watch_address=watch,
         displaced_instruction=PUSH,resume_address=hook+4,observer_base=BASE,observer_end=END,
         observer_entry=BASE+64,observer_code_bytes=len(module),records=1200,record_bytes=32,
         arm7_unchanged=True,arm9i_arm7i_unchanged=True,scope="fixture-only external hook; independent full NDS")

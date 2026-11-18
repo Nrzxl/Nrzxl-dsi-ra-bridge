@@ -1,0 +1,103 @@
+name: DSi 034B capability scout and retail gates
+on:
+  push:
+    branches: [feat/dsi-ra-bridge-retail-scout-034b]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  synthetic-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Read-only NTR/TWL and overlay gates
+        run: |
+          set -euo pipefail
+          python3 tests/retail_preflight_034.py
+          python3 tests/retail_memory_gate_034b.py
+  synthetic-windows:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Read-only NTR/TWL and overlay gates
+        shell: pwsh
+        run: |
+          python tests/retail_preflight_034.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tests/retail_memory_gate_034b.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+  upstream-source-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/nds-bootstrap
+          ref: af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          path: third_party/bootstrap-source-only
+          persist-credentials: false
+          submodules: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/dscheevos
+          ref: 59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+          path: third_party/dscheevos-source-only
+          persist-credentials: false
+          submodules: false
+      - name: Verify selected GPL hook contracts (read-only, no build)
+        run: |
+          python3 tests/upstream_source_gate_034b.py --bootstrap third_party/bootstrap-source-only --dscheevos third_party/dscheevos-source-only
+  scout-build:
+    needs: [synthetic-linux, synthetic-windows, upstream-source-gate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Deterministic builds in isolated pinned devkitARM
+        env:
+          IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          docker pull "$IMAGE"
+          for pass in first second; do
+            docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" --env HOME=/tmp \
+              --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
+              --mount "type=bind,source=$PWD,target=/src,readonly" \
+              --mount "type=bind,source=$PWD/out,target=/out" \
+              -w /work "$IMAGE" bash /src/scripts/build-scout-034b.sh "$pass"
+          done
+          cmp out/scout-first/DSIRB_Scout_034B.nds out/scout-second/DSIRB_Scout_034B.nds
+          node scripts/validate-nds.cjs out/scout-first/DSIRB_Scout_034B.nds out/scout-first/structural-check.json
+      - name: Package removable experimental scout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/package-scout-034b.py \
+            --binary out/scout-first/DSIRB_Scout_034B.nds \
+            --output out/DSi_RA_Bridge_034B_Scout_SD_ONLY.zip \
+            --commit "$GITHUB_SHA"
+          sha256sum out/DSi_RA_Bridge_034B_Scout_SD_ONLY.zip > out/SCOUT_034B_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034B_Scout_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034B_Scout_SD_ONLY.zip
+            out/SCOUT_034B_SHA256SUMS.txt
+            out/scout-first/size.txt
+            out/scout-first/structural-check.json
+          retention-days: 14
+          if-no-files-found: error

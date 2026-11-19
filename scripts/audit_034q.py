@@ -213,6 +213,9 @@ def main():
       "P1_only_archive_members":r["archive"]["P1_only_members"],
       "added_global_symbols":r["added_symbols_count"],
       "symbols":r["selected_symbols"],
+      "section_changes": [x for x in r["changed_sections"] if x["name"].startswith((".text",".rodata",".data",".bss",".twl",".init_array",".preinit_array",".fini_array"))],
+      "top_added_global_symbols":r["largest_new_global_symbols"][:20],
+      "selected_archive_counts":{"P0":r["archive"]["P0_member_count"],"P1":r["archive"]["P1_member_count"]},
       "P0_load":r["elf"]["P0"]["loads"],
       "P1_load":r["elf"]["P1"]["loads"],
     },indent=2,ensure_ascii=False))

@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           docker run --rm --network none \
             --mount "type=bind,source=$PWD,target=/src" \
-            -w /src skylyrac/blocksds:slim-v1.25.0 \
+            -w /src skylyrac/blocksds:slim-v1.25.0@sha256:c5f19b95d9c2f312e6a68ea244d2ed5120203b4b82af9785937a349096f8e5e4 \
             bash -c 'set -euo pipefail
               test -f "$BLOCKSDS/sys/arm7/main_core/arm7_minimal.elf"
               test -f "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi.elf"
@@ -42,7 +42,7 @@ jobs:
               cp "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi.elf" out/sdk125/arm7_dswifi.elf
               make -C dsi/probe-034m-base125
               make -C dsi/probe-034m-wifi125'
-          docker image inspect skylyrac/blocksds:slim-v1.25.0 --format '{{index .RepoDigests 0}}' | tee out/sdk125/docker_image_digest.txt
+          docker image inspect skylyrac/blocksds:slim-v1.25.0@sha256:c5f19b95d9c2f312e6a68ea244d2ed5120203b4b82af9785937a349096f8e5e4 --format '{{index .RepoDigests 0}}' | tee out/sdk125/docker_image_digest.txt
       - name: Fail closed on NDS bounds and record ELF layout for 4 controls
         shell: bash
         run: |

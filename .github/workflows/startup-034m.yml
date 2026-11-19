@@ -1,0 +1,81 @@
+name: DSi 034M SDK 1.25.0 official WiFi ARM7 startup A/B (no network)
+on:
+  push:
+    branches: [qa/dsi-official-wifi-125-034m-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Source safety and architecture A/B controls
+        run: python3 tests/test-probe-034m.py
+      - name: Build SDK 1.24 baseline K0/K1 for offline comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/sdk124 out/sdk125
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              cp "$BLOCKSDS/sys/arm7/main_core/arm7_minimal.elf" out/sdk124/arm7_minimal.elf
+              cp "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi.elf" out/sdk124/arm7_dswifi.elf
+              make -C dsi/probe-034k-minimal
+              make -C dsi/probe-034k-wifi-only'
+      - name: Build SDK 1.25 new official minimal and DSWiFi cores
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.25.0 \
+            bash -c 'set -euo pipefail
+              test -f "$BLOCKSDS/sys/arm7/main_core/arm7_minimal.elf"
+              test -f "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi.elf"
+              cp "$BLOCKSDS/sys/arm7/main_core/arm7_minimal.elf" out/sdk125/arm7_minimal.elf
+              cp "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi.elf" out/sdk125/arm7_dswifi.elf
+              make -C dsi/probe-034m-base125
+              make -C dsi/probe-034m-wifi125'
+          docker image inspect skylyrac/blocksds:slim-v1.25.0 --format '{{index .RepoDigests 0}}' | tee out/sdk125/docker_image_digest.txt
+      - name: Fail closed on NDS bounds and record ELF layout for 4 controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034m-base125/DSIRB_034M_BASE125.nds > out/sdk125/M0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034m-wifi125/DSIRB_034M_WIFI125.nds > out/sdk125/M1_header.json
+          python3 scripts/audit-arm7-layout-034i.py --label K0_SDK124 --elf out/sdk124/arm7_minimal.elf --nds dsi/probe-034k-minimal/DSIRB_034K_MINIMAL.nds --output out/sdk124/K0.json
+          python3 scripts/audit-arm7-layout-034i.py --label K1_SDK124 --elf out/sdk124/arm7_dswifi.elf --nds dsi/probe-034k-wifi-only/DSIRB_034K_WIFI_ONLY.nds --output out/sdk124/K1.json
+          python3 scripts/audit-arm7-layout-034i.py --label M0_SDK125 --elf out/sdk125/arm7_minimal.elf --nds dsi/probe-034m-base125/DSIRB_034M_BASE125.nds --output out/sdk125/M0.json
+          python3 scripts/audit-arm7-layout-034i.py --label M1_SDK125 --elf out/sdk125/arm7_dswifi.elf --nds dsi/probe-034m-wifi125/DSIRB_034M_WIFI125.nds --output out/sdk125/M1.json
+          python3 scripts/compare-034m.py out/sdk124/K0.json out/sdk124/K1.json out/sdk125/M0.json out/sdk125/M1.json out/sdk125/AB_comparison.json
+          sha256sum out/sdk124/*.elf out/sdk125/*.elf > out/core_sha256.txt
+          test "$(sha256sum dsi/probe-034m-base125/source/main.c | cut -d' ' -f1)" = "$(sha256sum dsi/probe-034m-wifi125/source/main.c | cut -d' ' -f1)"
+      - name: Package SD-only M0/M1, hashes and test instructions
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034M
+          cp dsi/probe-034m-base125/DSIRB_034M_BASE125.nds out/nds/DSiRABridge_034M/
+          cp dsi/probe-034m-wifi125/DSIRB_034M_WIFI125.nds out/nds/DSiRABridge_034M/
+          cp docs/startup-034m.md out/TESTE_034M.md
+          (cd out && sha256sum nds/DSiRABridge_034M/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034M_SDK125_ARM7_SD_ONLY.zip nds TESTE_034M.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034M_SDK125_ARM7_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+          rm -f out/sdk124/*.elf out/sdk125/*.elf
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034M_SDK125_ARM7_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034M_SDK125_ARM7_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/core_sha256.txt
+            out/sdk124/
+            out/sdk125/
+          if-no-files-found: error
+          retention-days: 14

@@ -33,8 +33,8 @@ jobs:
           python3 scripts/audit-arm7-layout-034i.py --label G1_CORE --elf dsi/probe-034g-core/arm7/build/arm7.elf --nds dsi/probe-034g-core/DSIRB_034G_CORE.nds --output out/arm7_034i/G1_layout.json
           python3 scripts/audit-arm7-layout-034i.py --label H1_LINK --elf dsi/probe-034h-link/arm7/build/arm7.elf --nds dsi/probe-034h-link/DSIRB_034H_LINK.nds --output out/arm7_034i/H1_layout.json
           sha256sum dsi/probe-034g-core/DSIRB_034G_CORE.nds dsi/probe-034h-link/DSIRB_034H_LINK.nds > out/arm7_034i/nds_sha256.txt
-          echo '===== G1 size ====='; grep -E '\\.(twl|twl_bss|text|bss|data)' out/arm7_034i/G1_sections.txt
-          echo '===== H1 size ====='; grep -E '\\.(twl|twl_bss|text|bss|data)' out/arm7_034i/H1_sections.txt
+          echo '===== G1 sections ====='; sed -n '1,24p' out/arm7_034i/G1_sections.txt
+          echo '===== H1 sections ====='; sed -n '1,24p' out/arm7_034i/H1_sections.txt
           echo '===== G1 top 25 symbols ====='; head -25 out/arm7_034i/G1_symbols_by_sections.txt
           echo '===== H1 top 25 symbols ====='; head -25 out/arm7_034i/H1_symbols_by_sections.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

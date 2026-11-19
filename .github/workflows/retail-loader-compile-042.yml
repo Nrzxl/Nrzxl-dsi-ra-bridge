@@ -52,7 +52,8 @@ jobs:
           mkdir -p out/retail-loader-042/DO_NOT_INSTALL
           cp upstream/nds-bootstrap-042/retail/bin/nds-bootstrap-nightly.nds \
              out/retail-loader-042/DO_NOT_INSTALL/retail-bootstrap-with-hooks.nds
-          node scripts/validate-nds.cjs \
+          python3 tests/test-retail-loader-042.py
+          python3 scripts/validate-retail-nds-042.py \
              out/retail-loader-042/DO_NOT_INSTALL/retail-bootstrap-with-hooks.nds \
              out/retail-loader-042/retail-format.json
           python3 - <<'PY'

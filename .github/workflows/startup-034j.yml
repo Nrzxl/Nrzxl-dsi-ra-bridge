@@ -1,0 +1,62 @@
+name: DSi 034J official BlocksDS ARM7 versus DSWiFi core (no network)
+on:
+  push:
+    branches: [qa/dsi-official-arm7-wifi-034j-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Static safety and identical ARM9 source
+        run: python3 tests/test-probe-034j.py
+      - name: Compile using pinned BlocksDS and unmodified official prebuilt cores
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              test -f "$BLOCKSDS/sys/arm7/main_core/arm7_maxmod.elf"
+              test -f "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi_maxmod.elf"
+              sha256sum "$BLOCKSDS/sys/arm7/main_core/arm7_maxmod.elf" "$BLOCKSDS/sys/arm7/main_core/arm7_dswifi_maxmod.elf"
+              make -C dsi/probe-034j-official-base
+              make -C dsi/probe-034j-official-wifi'
+      - name: Validate both NDS headers and actual ARM7 payload difference
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034j-official-base/DSIRB_034J_BASE.nds > out/BASE_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034j-official-wifi/DSIRB_034J_WIFI_CORE.nds > out/WIFI_header.json
+          python3 scripts/inspect-034j-nds.py \
+            dsi/probe-034j-official-base/DSIRB_034J_BASE.nds \
+            dsi/probe-034j-official-wifi/DSIRB_034J_WIFI_CORE.nds | tee out/ARM7_AB_comparison.json
+      - name: Assemble isolated SD-only archive with hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034J
+          cp dsi/probe-034j-official-base/DSIRB_034J_BASE.nds out/nds/DSiRABridge_034J/
+          cp dsi/probe-034j-official-wifi/DSIRB_034J_WIFI_CORE.nds out/nds/DSiRABridge_034J/
+          cp docs/startup-034j.md out/TESTE_034J.md
+          (cd out && sha256sum nds/DSiRABridge_034J/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034J_OFFICIAL_ARM7_SD_ONLY.zip nds TESTE_034J.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034J_OFFICIAL_ARM7_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034J_OFFICIAL_ARM7_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034J_OFFICIAL_ARM7_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/BASE_header.json
+            out/WIFI_header.json
+            out/ARM7_AB_comparison.json
+          if-no-files-found: error
+          retention-days: 14

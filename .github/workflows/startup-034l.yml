@@ -1,0 +1,62 @@
+name: DSi 034L inert NWRAM footprint diagnostic (no WiFi)
+on:
+  push:
+    branches: [qa/dsi-nwram-footprint-034l-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Safety gate before building
+        run: python3 tests/test-probe-034l.py
+      - name: Compile control and padded ARM7 probes using pinned BlocksDS
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034l-control
+              make -C dsi/probe-034l-pad'
+      - name: Fail-closed comparison of ARM9 payload and NWRAM sections
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034l-control/DSIRB_034L_CONTROL.nds > out/L0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034l-pad/DSIRB_034L_PAD.nds > out/L1_header.json
+          python3 scripts/verify-034l-layout.py \
+            dsi/probe-034l-control/arm7/build/arm7.elf \
+            dsi/probe-034l-pad/arm7/build/arm7.elf \
+            dsi/probe-034l-control/DSIRB_034L_CONTROL.nds \
+            dsi/probe-034l-pad/DSIRB_034L_PAD.nds \
+            out/L0_vs_L1_NWRAM.json
+      - name: Package SD-only isolated diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034L
+          cp dsi/probe-034l-control/DSIRB_034L_CONTROL.nds out/nds/DSiRABridge_034L/
+          cp dsi/probe-034l-pad/DSIRB_034L_PAD.nds out/nds/DSiRABridge_034L/
+          cp docs/startup-034l.md out/TESTE_034L.md
+          (cd out && sha256sum nds/DSiRABridge_034L/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034L_NWRAM_PAD_SD_ONLY.zip nds TESTE_034L.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034L_NWRAM_PAD_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034L_NWRAM_PAD_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034L_NWRAM_PAD_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/L0_vs_L1_NWRAM.json
+            out/L0_header.json
+            out/L1_header.json
+          if-no-files-found: error
+          retention-days: 14

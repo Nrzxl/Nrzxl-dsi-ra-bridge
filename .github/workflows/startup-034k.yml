@@ -1,0 +1,73 @@
+name: DSi 034K official minimal vs DSWiFi-only, offline memory audit
+on:
+  push:
+    branches: [qa/dsi-official-wifi-only-034k-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Safety test source, same ARM9, official cores
+        run: python3 tests/test-probe-034k.py
+      - name: Build K0 K1 plus preexisting J0 J1 for static ELF analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/arm7_034k/.temporary
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              for core in arm7_minimal.elf arm7_dswifi.elf arm7_maxmod.elf arm7_dswifi_maxmod.elf; do
+                test -f "$BLOCKSDS/sys/arm7/main_core/$core"
+                sha256sum "$BLOCKSDS/sys/arm7/main_core/$core"
+                cp "$BLOCKSDS/sys/arm7/main_core/$core" "out/arm7_034k/.temporary/$core"
+              done
+              make -C dsi/probe-034k-minimal
+              make -C dsi/probe-034k-wifi-only
+              make -C dsi/probe-034j-official-base
+              make -C dsi/probe-034j-official-wifi'
+      - name: Validate headers and offline ARM7 memory maps
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034k-minimal/DSIRB_034K_MINIMAL.nds > out/arm7_034k/K0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034k-wifi-only/DSIRB_034K_WIFI_ONLY.nds > out/arm7_034k/K1_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034j-official-base/DSIRB_034J_BASE.nds > out/arm7_034k/J0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034j-official-wifi/DSIRB_034J_WIFI_CORE.nds > out/arm7_034k/J1_header.json
+          python3 scripts/audit-arm7-layout-034i.py --label K0_MINIMAL --elf out/arm7_034k/.temporary/arm7_minimal.elf --nds dsi/probe-034k-minimal/DSIRB_034K_MINIMAL.nds --output out/arm7_034k/K0.json
+          python3 scripts/audit-arm7-layout-034i.py --label K1_DSWIFI_ONLY --elf out/arm7_034k/.temporary/arm7_dswifi.elf --nds dsi/probe-034k-wifi-only/DSIRB_034K_WIFI_ONLY.nds --output out/arm7_034k/K1.json
+          python3 scripts/audit-arm7-layout-034i.py --label J0_MAXMOD --elf out/arm7_034k/.temporary/arm7_maxmod.elf --nds dsi/probe-034j-official-base/DSIRB_034J_BASE.nds --output out/arm7_034k/J0.json
+          python3 scripts/audit-arm7-layout-034i.py --label J1_DSWIFI_MAXMOD --elf out/arm7_034k/.temporary/arm7_dswifi_maxmod.elf --nds dsi/probe-034j-official-wifi/DSIRB_034J_WIFI_CORE.nds --output out/arm7_034k/J1.json
+          python3 scripts/compare-034k-cores.py out/arm7_034k/K0.json out/arm7_034k/K1.json out/arm7_034k/J0.json out/arm7_034k/J1.json out/arm7_034k/comparison.json
+          for core in arm7_minimal.elf arm7_dswifi.elf arm7_maxmod.elf arm7_dswifi_maxmod.elf; do
+            readelf -lW "out/arm7_034k/.temporary/$core" > "out/arm7_034k/${core}.program_headers.txt"
+            readelf -SW "out/arm7_034k/.temporary/$core" > "out/arm7_034k/${core}.sections.txt"
+          done
+          rm -rf out/arm7_034k/.temporary
+      - name: Package K0 K1 only (SD-only; no system files)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034K
+          cp dsi/probe-034k-minimal/DSIRB_034K_MINIMAL.nds out/nds/DSiRABridge_034K/
+          cp dsi/probe-034k-wifi-only/DSIRB_034K_WIFI_ONLY.nds out/nds/DSiRABridge_034K/
+          cp docs/startup-034k.md out/TESTE_034K.md
+          (cd out && sha256sum nds/DSiRABridge_034K/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034K_WIFI_ONLY_SD_ONLY.zip nds TESTE_034K.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034K_WIFI_ONLY_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034K_WIFI_ONLY_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034K_WIFI_ONLY_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/arm7_034k/
+          if-no-files-found: error
+          retention-days: 14

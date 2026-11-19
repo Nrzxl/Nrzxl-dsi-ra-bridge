@@ -1,0 +1,87 @@
+name: DSi 042 experimental retail bootstrap compile - NEVER INSTALL
+on:
+  push:
+    branches: [qa/dsi-retail-game-observer-042-20261119]
+    paths:
+      - .github/workflows/retail-loader-compile-042.yml
+      - scripts/audit-retail-upstream-042.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-only-retail-loader:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/nds-bootstrap
+          ref: af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          path: upstream/nds-bootstrap-042
+          persist-credentials: false
+      - name: Prepare fixed-source lzss tool
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/retail-loader-042
+          gcc -O2 -static upstream/nds-bootstrap-042/lzss.c -o out/retail-loader-042/lzss
+          sha256sum out/retail-loader-042/lzss > out/retail-loader-042/lzss-sha256.txt
+      - name: Build independent nds-bootstrap retail with GPL source, network disabled in build container
+        shell: bash
+        env:
+          IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --tmpfs /tmp:rw,exec,mode=1777 \
+            --mount "type=bind,source=$PWD/upstream/nds-bootstrap-042,target=/src" \
+            --mount "type=bind,source=$PWD/out/retail-loader-042/lzss,target=/usr/local/bin/lzss,readonly" \
+            -w /src "$IMAGE" bash -c '
+              export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM
+              export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+              make -C retail nightly
+            ' 2>&1 | tee out/retail-loader-042/retail-build.txt
+      - name: Verify built ARM9+ARM7 NDS without booting on hardware
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/retail-loader-042/DO_NOT_INSTALL
+          cp upstream/nds-bootstrap-042/retail/bin/nds-bootstrap-nightly.nds \
+             out/retail-loader-042/DO_NOT_INSTALL/retail-bootstrap-with-hooks.nds
+          node scripts/validate-nds.cjs \
+             out/retail-loader-042/DO_NOT_INSTALL/retail-bootstrap-with-hooks.nds \
+             out/retail-loader-042/retail-format.json
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          p=pathlib.Path("out/retail-loader-042/DO_NOT_INSTALL/retail-bootstrap-with-hooks.nds")
+          size=p.stat().st_size
+          assert size>100000 and size<32*1024*1024
+          hooks=pathlib.Path("upstream/nds-bootstrap-042/retail/bootloaderi/source/arm7/dscheevos_hooks.c").read_text()
+          assert "patchOsHalt" in hooks and "fillPmk" in hooks and "wipeSession" in hooks
+          doc={"status":"COMPILED_TECHNICAL_ONLY_NOT_FOR_INSTALL","game_executed":False,
+               "rom_included":False,"firmware_included":False,
+               "official_awards":False,"network_runtime_not_exercised":True,
+               "bootloader_sha":"af351f096dd71a37e0e5b18d9709bcc0fb70342f",
+               "size":size,"sha256":hashlib.sha256(p.read_bytes()).hexdigest(),
+               "known_blockers":["requires protected SD paths and a valid session",
+                                 "reads PMK from firmware for WPA2 recovery",
+                                 "writes/wipes transient session",
+                                 "requires DSi physical Lenny permission validation"]}
+          pathlib.Path("out/retail-loader-042/build-evidence.json").write_text(json.dumps(doc,indent=2)+"\n")
+          print(json.dumps(doc))
+          PY
+          echo "### Retail bootstrap compiled. NOT SAFE TO INSTALL." >> "$GITHUB_STEP_SUMMARY"
+          echo "- This is an original GPL upstream diagnostic build, not a patched isolated user edition." >> "$GITHUB_STEP_SUMMARY"
+          echo "- Never copy this NDS to the current SD or replace _nds files." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: DSi_RA_Bridge_042_Bootstrap_Hooks_TECH_ONLY_DO_NOT_INSTALL
+          path: |
+            out/retail-loader-042/
+          retention-days: 14
+          if-no-files-found: error

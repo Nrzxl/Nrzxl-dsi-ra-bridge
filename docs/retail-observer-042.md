@@ -73,6 +73,30 @@ algumas chamadas a rc_client em ambiente host e uma opção de espectador.
 Nenhum desses testes envolve autenticação real ou submissão RA.
 Não há autorização para awards oficiais no caminho 042.
 
+## Segundo resultado: nds-bootstrap retail com hooks ARM7/ARM9 compilado
+
+GitHub Actions #44602888134 **SUCCESS**, compilação técnica da fonte GPL
+nds-bootstrap fixada em af351f096dd71a37e0e5b18d9709bcc0fb70342f com
+SDK antigo que a fonte exige (devkitpro/devkitarm:20241104); 4 verificações
+do validador de formato PASS, header ARM7/ARM9 e CRC válido.
+
+Binário técnico gerado: 1.732.608 bytes, SHA256
+c93bc0e16803ba1852dc07a90c30032fbabf9864b86a5d61c9bca2497eea6b9b,
+identificado como NDSBOOTSTRAP, game code KBSE, unit code 3.
+Artefato #14568942256 rotulado **DO_NOT_INSTALL**.
+
+Este binário não vem integrado a um launcher isolado de teste e **não**
+pode ser iniciado sozinho para monitorar um jogo: o caminho original
+necessita da sessão, dos hooks e da estrutura operacional do nds-bootstrap.
+O upstream lê dados de firmware para recuperar PMK Wi-Fi e altera arquivos
+de sessão; não fazê-lo interagir com o SD atual. **Nenhuma ROM foi
+executada; nenhum jogo foi observado; nenhuma conquista enviada.**
+
+O validador antigo do DSi RA Bridge exigia um título próprio e rejeitou
+o NDSBOOTSTRAP; foi substituído por verificação genérica adequada de
+cabeçalho e segmentos. Os históricos de CI com falhas anteriores permanecem
+auditáveis; o resultado final é o workflow #44602888134.
+
 ## Instalação
 
 Não há instalação no DSi nesta entrega. A 0.4.1 permanece intacta.

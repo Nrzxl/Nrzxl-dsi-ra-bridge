@@ -1,0 +1,66 @@
+name: DSi 034Q offline P0 PASS vs P1 WHITE linker ELF audit
+on:
+  push:
+    branches: [qa/dsi-p0-p1-offline-memory-audit-034q-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify source controls and map parser tests
+        run: python3 -m unittest discover -s tests -p 'test_audit_034q.py' -v
+      - name: Build known O2, P0 and P1 with pinned SDK 1.24 offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034o-receive
+              make -C dsi/probe-034p-control
+              make -C dsi/probe-034p-update-link
+              test -s dsi/probe-034p-control/arm7/build/arm7.map
+              test -s dsi/probe-034p-update-link/arm7/build/arm7.map'
+      - name: Audit static NDS CPU hashes, ELF, archive maps and symbols
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/034q
+          python3 scripts/audit_034q.py \
+            --o2-nds dsi/probe-034o-receive/DSIRB_034O_RX_POLL.nds \
+            --p0-nds dsi/probe-034p-control/DSIRB_034P_CONTROL.nds \
+            --p1-nds dsi/probe-034p-update-link/DSIRB_034P_UPDATE_LINK.nds \
+            --p0-elf dsi/probe-034p-control/arm7/build/arm7.elf \
+            --p1-elf dsi/probe-034p-update-link/arm7/build/arm7.elf \
+            --p0-map dsi/probe-034p-control/arm7/build/arm7.map \
+            --p1-map dsi/probe-034p-update-link/arm7/build/arm7.map \
+            --json-out out/034q/AUDITORIA_034Q.json \
+            --md-out out/034q/AUDITORIA_034Q.md
+          for probe in P0 P1; do
+            case "$probe" in
+              P0) dir=dsi/probe-034p-control ;;
+              P1) dir=dsi/probe-034p-update-link ;;
+            esac
+            cp "$dir/arm7/build/arm7.map" "out/034q/${probe}_arm7.map"
+            readelf -lSW "$dir/arm7/build/arm7.elf" > "out/034q/${probe}_segments_sections.txt"
+            readelf -sW "$dir/arm7/build/arm7.elf" > "out/034q/${probe}_symbols.txt"
+            readelf -rW "$dir/arm7/build/arm7.elf" > "out/034q/${probe}_relocations.txt"
+            sha256sum "$dir/arm7/build/arm7.elf" >> out/034q/ELF_SHA256.txt
+          done
+          cp docs/startup-034q.md out/034q/LEIA_034Q.md
+          (cd out/034q && sha256sum AUDITORIA_034Q.json AUDITORIA_034Q.md P0_arm7.map P1_arm7.map > SHA256SUMS.txt)
+          echo '### 034Q offline, nenhum NDS novo liberado' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '1,115p' out/034q/AUDITORIA_034Q.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034Q_OFFLINE_ELF_MAP_AUDIT_ONLY
+          path: out/034q/
+          retention-days: 14
+          if-no-files-found: error

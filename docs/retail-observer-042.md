@@ -53,6 +53,26 @@ Gate D: frames lógicos a 60 Hz sem perdas silenciosas, overlays,
 reinício e comparação com rcheevos Windows.
 Gate E: integração RA legítima com aprovação e requisitos de segurança.
 
+## Entrega técnica comprovada
+
+Na CI #44600300043, o núcleo upstream DScheevos (commit fixo) concluiu
+2.443 verificações, 0 falhas. O compilador cruzado arm-none-eabi produziu
+um módulo real ARM9, magic DSCV, ABI 7, 342.184 bytes, SHA256
+e149855d76f83701ec6ffb28401cdd60e871c830755f6f983d32fdd07fb1ae43.
+O teste validou apenas cabeçalho/versão e tamanho do binário. NÃO foi
+injetado num jogo, não executou no DSi XL e não há métricas físicas de
+desempenho em jogo.
+
+O artefato de CI guarda o módulo em DO_NOT_INSTALL/dscheevos9.bin
+exclusivamente para a auditoria. É uma dependência ARM9 do bootloader,
+não um executável .nds independente. NÃO copiar para o SD.
+O script preflight tem 8 regressões PASS, além das 5 da linha 041.
+
+Os testes do núcleo upstream incluem condições/sessões simuladas,
+algumas chamadas a rc_client em ambiente host e uma opção de espectador.
+Nenhum desses testes envolve autenticação real ou submissão RA.
+Não há autorização para awards oficiais no caminho 042.
+
 ## Instalação
 
 Não há instalação no DSi nesta entrega. A 0.4.1 permanece intacta.

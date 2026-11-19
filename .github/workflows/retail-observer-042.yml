@@ -71,6 +71,7 @@ jobs:
           set -euo pipefail
           docker pull "$IMAGE"
           docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --tmpfs /tmp:rw,exec,mode=1777 \
             --mount "type=bind,source=$PWD/upstream/retail-042,target=/src" \
             -w /src "$IMAGE" bash -c '
               export DEVKITARM=/opt/devkitpro/devkitARM

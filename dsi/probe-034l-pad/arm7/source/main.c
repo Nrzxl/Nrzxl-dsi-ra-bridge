@@ -16,7 +16,7 @@
 // .twl is loaded only in DSi mode. .twl_bss reserves uninitialized DSi RAM.
 // Both allocations are inert. Only their addresses are passed to an empty
 // compiler barrier to prevent linker garbage collection; NO memory read/write.
-static const unsigned char dsirb_twl_bytes[17844]
+static const unsigned char dsirb_twl_bytes[17848]
     __attribute__((used, aligned(4), section(".twl"))) = { 0x4C };
 static unsigned char dsirb_twl_bss[13300]
     __attribute__((used, aligned(4), section(".twl_bss")));

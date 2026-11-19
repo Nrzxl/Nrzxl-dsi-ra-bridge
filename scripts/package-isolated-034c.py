@@ -118,6 +118,7 @@ def main():
             raise ValueError("invalid binary " + src)
         files[target] = data
     files.update({
+        "PREPARE_034C.ps1": (Path(__file__).resolve().parent / "prepare-sd-offline-034c.ps1").read_bytes(),
         "_nds/dsirb034c/nds-bootstrap.ini": INI.encode(),
         "_nds/dsirb034c/dscheevos.ini": SETTINGS.encode(),
         "nds/DSiRABridge_034C/README.txt": GUIDE.encode(),
@@ -134,7 +135,7 @@ def main():
         "retroachievements": "DISABLED",
         "offline_by_default": True, "official_awards": 0,
         "no_game_in_package": True,
-        "no_stable_paths_written_by_installer": True,
+        "no_stable_executables_overwritten_from_zip": True,
         "no_release": True,
         "checksums": {name: hashlib.sha256(files[name]).hexdigest() for name in binary},
     }

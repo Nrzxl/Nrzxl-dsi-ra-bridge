@@ -5,6 +5,8 @@ on:
     paths:
       - .github/workflows/retail-loader-compile-042.yml
       - scripts/audit-retail-upstream-042.py
+      - scripts/validate-retail-nds-042.py
+      - tests/test-retail-loader-042.py
   workflow_dispatch:
 permissions:
   contents: read

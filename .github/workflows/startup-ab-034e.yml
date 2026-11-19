@@ -1,0 +1,58 @@
+name: DSi 034E minimal startup A-B probes (no game)
+on:
+  push:
+    branches: [qa/dsi-startup-ab-034e-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Compile A with the known-good 034B devkitARM toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --mount "type=bind,source=$PWD,target=/src" \
+            -w /src devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5 \
+            bash -c 'export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM; export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"; make -C dsi/probe-034e-devkit'
+      - name: Compile B with BlocksDS minimal default ARM7 core
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0 \
+            make -C dsi/probe-034e-blocks
+      - name: Validate both .nds structures
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds
+          test -s dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds
+          node scripts/validate-nds.cjs dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds out_A.json
+          node scripts/validate-nds.cjs dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds out_B.json
+      - name: Package only new removable 034E directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034E
+          cp dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds out/nds/DSiRABridge_034E/
+          cp dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds out/nds/DSiRABridge_034E/
+          cp docs/startup-ab-034e.md out/TESTE_034E.md
+          (cd out && sha256sum nds/DSiRABridge_034E/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034E_Startup_AB_SD_ONLY.zip nds TESTE_034E.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034E_Startup_AB_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034E_Startup_AB_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034E_Startup_AB_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out_A.json
+            out_B.json
+          if-no-files-found: error
+          retention-days: 14

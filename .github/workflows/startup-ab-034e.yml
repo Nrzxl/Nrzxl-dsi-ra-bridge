@@ -38,7 +38,7 @@ jobs:
           test -s out/DSIRB_034E_DEVKIT.nds
           test -s dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds
           node scripts/validate-nds.cjs out/DSIRB_034E_DEVKIT.nds out_A.json
-          node scripts/validate-nds.cjs dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds out_B.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds | tee out_B.json
       - name: Package only new removable 034E directory
         shell: bash
         run: |

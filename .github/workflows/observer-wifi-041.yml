@@ -1,0 +1,139 @@
+name: DSi 041 external observer plus 030 WiFi transport in second homebrew
+on:
+  push:
+    branches: [qa/dsi-observer-wifi-integration-041-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: devkitPro/nds-bootloader
+          ref: a0f819008a63f28c4994e7cc8a8ace892450bbb5
+          path: third_party/nds-bootloader
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/melonDS
+          ref: 8a63c88333c8cb4efed76d866872fc3b6ed0de96
+          path: third_party/melonds
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: RetroAchievements/rcheevos
+          ref: 1433173220a7eaede6a9ed7a18e94117be1821e0
+          path: third_party/rcheevos
+          persist-credentials: false
+      - name: Source-safety tests, proven wire serialization, legacy regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/logs
+          python3 tests/test-observer-wifi-041.py
+          node tests/wire-observer-041.cjs
+          python3 tests/memory-map-033.py
+          python3 tests/independent-033.py
+          node tests/protocol-tests.cjs
+          node tests/nds-format-tests.cjs
+          cmake -S engine -B out/engine -DCMAKE_BUILD_TYPE=Release
+          cmake --build out/engine --parallel 2
+          ctest --test-dir out/engine --output-on-failure
+      - name: Real ARM9 + standard SDK ARM7 build; two independent pinned passes
+        shell: bash
+        env:
+          IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          for pass in first second; do
+            for phase in parts launchers; do
+              docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+                --user "$(id -u):$(id -g)" --env HOME=/tmp \
+                --tmpfs /tmp:rw,exec,mode=1777 --tmpfs /work:rw,exec,mode=1777 \
+                --mount "type=bind,source=$PWD,target=/src,readonly" \
+                --mount "type=bind,source=$PWD/out,target=/out" -w /work \
+                "$IMAGE" bash /src/scripts/build-independent-041.sh "$pass" "$phase" \
+                2>&1 | tee "out/logs/build-$pass-$phase-041.txt"
+              if test "$phase" = parts; then
+                d="out/independent-$pass"
+                python3 scripts/instrument-fixture-041.py --fixture "$d/DSiRABridge_Fixture_B_041.nds" \
+                  --symbols "$d/fixture-symbols.txt" --sections "$d/fixture-sections.txt" \
+                  --module "$d/observer.bin" --module-symbols "$d/observer-symbols.txt" \
+                  --output "$d/instrumented"
+                python3 scripts/prepare-loader-033.py "$d"
+              fi
+            done
+          done
+          for f in DSiRABridge_Fixture_B_041.nds DSiRABridge_Launcher_A_041.nds \
+            DSiRABridge_Launcher_A_041_EMU_ONLY.nds observer.bin \
+            instrumented/Fixture_B_041_observed.nds; do
+            cmp "out/independent-first/$f" "out/independent-second/$f"
+          done
+          node scripts/validate-nds.cjs \
+            out/independent-first/instrumented/Fixture_B_041_observed.nds \
+            out/independent-first/structure.json
+      - name: Compile DSi homebrew emulator and test launcher to second fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y libenet-dev libglib2.0-dev
+          cmake -S third_party/melonds/tools/dscheevos/headless -B "$RUNNER_TEMP/melonds-build" \
+            -DCMAKE_BUILD_TYPE=Release -DENABLE_LTO_RELEASE=OFF
+          cmake --build "$RUNNER_TEMP/melonds-build" --parallel 2
+          python3 tests/emulator-independent-041.py \
+            --emulator "$RUNNER_TEMP/melonds-build/melonds-headless" \
+            --build out/independent-first --sd "$RUNNER_TEMP/dsirb041-synthetic-sd" \
+            --output out/emulation --engine out/engine/dsirb_live
+      - name: Package separate SD + Windows receiver + GPL corresponding source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/package-observer-wifi-041.py
+          python3 - <<'PY'
+          import hashlib, pathlib, zipfile, json
+          root=pathlib.Path("out")
+          for name in ("DSi_RA_Bridge_SD_041_HARDWARE_NOT_RUN.zip",
+                       "DSi_RA_Bridge_Windows_041.zip",
+                       "DSi_RA_Bridge_041_Corresponding_Source.zip"):
+              p=root/name
+              assert p.is_file() and p.stat().st_size>500
+              with zipfile.ZipFile(p) as z:
+                  assert z.testzip() is None,name
+                  names=z.namelist()
+                  if "SD_041" in name:
+                      assert sum(x.endswith(".nds") for x in names)==3
+                      assert not any(x.startswith(("boot.nds","_nds/","private/")) for x in names)
+                  if "Windows" in name:
+                      assert "INICIAR_RECEIVER_041.cmd" in names
+              print(name,p.stat().st_size,hashlib.sha256(p.read_bytes()).hexdigest())
+          m=json.loads((root/"emulation/validation.json").read_text())
+          assert m["status"]=="PASS" and m["hardware"]=="NOT_RUN"
+          PY
+          echo "### 041 CI PASS / PHYSICAL NOT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Original 030 UDP receiver format retained; runtime driver activated only on Y" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Default devkitARM ARM7; external ARM9 observer 041 data latch" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 041 tested only in DS/NTR emulator; Wi-Fi hardware and RA awards NOT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          cat out/ARTIFACT_SHA256SUMS_041.txt >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_041_Observer_WiFi_Integrated_SD_Windows_Source
+          path: |
+            out/DSi_RA_Bridge_SD_041_HARDWARE_NOT_RUN.zip
+            out/DSi_RA_Bridge_Windows_041.zip
+            out/DSi_RA_Bridge_041_Corresponding_Source.zip
+            out/ARTIFACT_SHA256SUMS_041.txt
+            out/emulation/validation.json
+            out/independent-first/instrumented/instrumentation.json
+            out/independent-first/structure.json
+            out/logs/
+          if: always()
+          retention-days: 14
+          if-no-files-found: error

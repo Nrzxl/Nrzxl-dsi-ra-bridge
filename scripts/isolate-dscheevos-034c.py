@@ -19,9 +19,12 @@ REPLACEMENTS = (
     ("fat:/_nds/nds-bootstrap.ini", "fat:/_nds/dsirb034c/nds-bootstrap.ini"),
     ("/_nds/nds-bootstrap/", "/_nds/dsirb034c-cache/"),
     ("/_nds/dscheevos/", "/_nds/dsirb034c/"),
+    # Path literals without a trailing slash (mkdir, comments, safety labels)
+    # must also be moved away from the stable installation.
+    ("_nds/nds-bootstrap", "_nds/dsirb034c-cache"),
+    ("_nds/dscheevos", "_nds/dsirb034c"),
 )
-REMAINING_FORBIDDEN = ("_nds/nds-bootstrap.ini", "_nds/nds-bootstrap/",
-                       "_nds/dscheevos/")
+REMAINING_FORBIDDEN = ("_nds/nds-bootstrap", "_nds/dscheevos")
 
 def source_files(root):
     for part in SOURCE_ROOTS:

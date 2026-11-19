@@ -1,0 +1,82 @@
+name: DSi 034S isolate TWL loader and AES SDIO link closure
+on:
+  push:
+    branches: [qa/dsi-twl-loader-subsystem-isolation-034s-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify source gates and physical control
+        run: python3 tests/test-probe-034s.py
+      - name: Build reference R0 R1 R2 and candidates S0 S1 S2 S3
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034r-control
+              make -C dsi/probe-034r-ntr-link
+              make -C dsi/probe-034r-twl-link
+              make -C dsi/probe-034s-control
+              make -C dsi/probe-034s-twl-canary
+              make -C dsi/probe-034s-aes-symbol
+              make -C dsi/probe-034s-sdio-symbol'
+      - name: Validate NDS ELF TWL symbol placement and closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/audit
+          for probe in control twl-canary aes-symbol sdio-symbol; do
+            case "$probe" in
+              control) n=DSIRB_034S_CONTROL ;;
+              twl-canary) n=DSIRB_034S_TWL_CANARY ;;
+              aes-symbol) n=DSIRB_034S_AES_SYMBOL ;;
+              sdio-symbol) n=DSIRB_034S_SDIO_SYMBOL ;;
+            esac
+            python3 tests/validate-blocks-header-034e.py "dsi/probe-034s-$probe/$n.nds" > "out/audit/$probe-header.json"
+            readelf -lSW "dsi/probe-034s-$probe/arm7/build/arm7.elf" > "out/audit/$probe-layout.txt"
+            readelf -sW "dsi/probe-034s-$probe/arm7/build/arm7.elf" > "out/audit/$probe-symbols.txt"
+          done
+          python3 scripts/audit_034s.py \
+            --r0-nds dsi/probe-034r-control/DSIRB_034R_CONTROL.nds --r0-elf dsi/probe-034r-control/arm7/build/arm7.elf --r0-map dsi/probe-034r-control/arm7/build/arm7.map \
+            --r1-nds dsi/probe-034r-ntr-link/DSIRB_034R_NTR_LINK.nds --r1-elf dsi/probe-034r-ntr-link/arm7/build/arm7.elf --r1-map dsi/probe-034r-ntr-link/arm7/build/arm7.map \
+            --r2-nds dsi/probe-034r-twl-link/DSIRB_034R_TWL_LINK.nds --r2-elf dsi/probe-034r-twl-link/arm7/build/arm7.elf --r2-map dsi/probe-034r-twl-link/arm7/build/arm7.map \
+            --s0-nds dsi/probe-034s-control/DSIRB_034S_CONTROL.nds --s0-elf dsi/probe-034s-control/arm7/build/arm7.elf --s0-map dsi/probe-034s-control/arm7/build/arm7.map \
+            --s1-nds dsi/probe-034s-twl-canary/DSIRB_034S_TWL_CANARY.nds --s1-elf dsi/probe-034s-twl-canary/arm7/build/arm7.elf --s1-map dsi/probe-034s-twl-canary/arm7/build/arm7.map \
+            --s2-nds dsi/probe-034s-aes-symbol/DSIRB_034S_AES_SYMBOL.nds --s2-elf dsi/probe-034s-aes-symbol/arm7/build/arm7.elf --s2-map dsi/probe-034s-aes-symbol/arm7/build/arm7.map \
+            --s3-nds dsi/probe-034s-sdio-symbol/DSIRB_034S_SDIO_SYMBOL.nds --s3-elf dsi/probe-034s-sdio-symbol/arm7/build/arm7.elf --s3-map dsi/probe-034s-sdio-symbol/arm7/build/arm7.map \
+            --json-out out/audit/AB_034S.json --md-out out/audit/AB_034S.md
+          cp docs/startup-034s.md out/audit/TESTE_034S.md
+      - name: Package only S0 S1 S2 S3 SD copies and SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034S
+          cp dsi/probe-034s-control/DSIRB_034S_CONTROL.nds out/nds/DSiRABridge_034S/
+          cp dsi/probe-034s-twl-canary/DSIRB_034S_TWL_CANARY.nds out/nds/DSiRABridge_034S/
+          cp dsi/probe-034s-aes-symbol/DSIRB_034S_AES_SYMBOL.nds out/nds/DSiRABridge_034S/
+          cp dsi/probe-034s-sdio-symbol/DSIRB_034S_SDIO_SYMBOL.nds out/nds/DSiRABridge_034S/
+          cp docs/startup-034s.md out/TESTE_034S.md
+          (cd out && sha256sum nds/DSiRABridge_034S/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034S_TWL_LOADER_SUBSYSTEM_SD_ONLY.zip nds TESTE_034S.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034S_TWL_LOADER_SUBSYSTEM_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+          echo '### 034S: STATIC PASS; physical S0-S3 NOT_RUN' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '1,90p' out/audit/AB_034S.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034S_TWL_LOADER_SUBSYSTEM_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034S_TWL_LOADER_SUBSYSTEM_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/audit/
+          retention-days: 14
+          if-no-files-found: error

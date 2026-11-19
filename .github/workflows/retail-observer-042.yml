@@ -31,6 +31,18 @@ jobs:
           ref: 754965ef28db22b0411bfccbde39154cd09e6b79
           path: upstream/retail-042/external/rcheevos
           persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: 068ff080b369adfac81509f9b57b2afabaf82dc5
+          path: upstream/retail-042/external/mbedtls
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: lwip-tcpip/lwip
+          ref: 77dcd25a72509eb83f72b033d219b1d40cd8eb95
+          path: upstream/retail-042/external/lwip
+          persist-credentials: false
       - name: Local preflight unit tests and 041 source preservation
         shell: bash
         run: |
@@ -51,6 +63,34 @@ jobs:
           set -euo pipefail
           make -C upstream/retail-042/dscheevos/core test \
             2>&1 | tee out/retail-042/upstream-core-test.txt
+      - name: Build real ARM9 retail observer module in sandbox (NOT FOR SD)
+        shell: bash
+        env:
+          IMAGE: devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+        run: |
+          set -euo pipefail
+          docker pull "$IMAGE"
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --mount "type=bind,source=$PWD/upstream/retail-042,target=/src" \
+            -w /src "$IMAGE" bash -c '
+              export DEVKITARM=/opt/devkitpro/devkitARM
+              make -C dscheevos/module HOTCHECK=0
+            ' 2>&1 | tee out/retail-042/arm9-module-build.txt
+          mkdir -p out/retail-042/DO_NOT_INSTALL
+          cp upstream/retail-042/dscheevos/module/build/dscheevos9.bin \
+             out/retail-042/DO_NOT_INSTALL/dscheevos9.bin
+          python3 - <<'PY'
+          import hashlib,pathlib,struct,json
+          b=pathlib.Path("out/retail-042/DO_NOT_INSTALL/dscheevos9.bin").read_bytes()
+          assert b[:4]==b"DSCV", "module magic"
+          assert struct.unpack_from("<I",b,4)[0]==7, "module ABI 7"
+          assert 0x1000<=len(b)<=0x80000, "module image must fit 512 KiB"
+          print(json.dumps({"status":"ARM9_BIN_COMPILED_NOT_INSTALLABLE",
+                            "bytes":len(b),"sha256":hashlib.sha256(b).hexdigest(),
+                            "magic":"DSCV","abi_version":7,
+                            "hardware":"NOT_RUN","roms":"NOT_RUN"}))
+          PY
+          sha256sum out/retail-042/DO_NOT_INSTALL/dscheevos9.bin > out/retail-042/module-sha256.txt
       - name: Static memory and licensing evidence (NOT installable)
         shell: bash
         run: |

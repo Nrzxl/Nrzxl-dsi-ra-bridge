@@ -21,25 +21,22 @@ jobs:
           docker run --rm --network none \
             --mount "type=bind,source=$PWD,target=/src" \
             -w /src skylyrac/blocksds:slim-v1.24.0 \
-            bash -c 'set -euo pipefail
-              make -C dsi/probe-034g-core
-              make -C dsi/probe-034h-link
-              for name in G1 H1; do
-                if [ "$name" = G1 ]; then dir=dsi/probe-034g-core; nds=DSIRB_034G_CORE.nds; else dir=dsi/probe-034h-link; nds=DSIRB_034H_LINK.nds; fi
-                arm="$dir/arm7/build/arm7.elf"
-                arm-none-eabi-readelf -lW "$arm" > "out/arm7_034i/${name}_program_headers.txt"
-                arm-none-eabi-readelf -SW "$arm" > "out/arm7_034i/${name}_sections.txt"
-                arm-none-eabi-size -A "$arm" > "out/arm7_034i/${name}_size.txt"
-                arm-none-eabi-nm -S --size-sort "$arm" > "out/arm7_034i/${name}_symbols_sorted.txt"
-                arm-none-eabi-objdump -h "$arm" > "out/arm7_034i/${name}_objdump_sections.txt"
-              done'
+            bash -c 'set -euo pipefail; make -C dsi/probe-034g-core; make -C dsi/probe-034h-link'
+          for name in G1 H1; do
+            if [ "$name" = G1 ]; then dir=dsi/probe-034g-core; else dir=dsi/probe-034h-link; fi
+            arm="$dir/arm7/build/arm7.elf"
+            readelf -lW "$arm" > "out/arm7_034i/${name}_program_headers.txt"
+            readelf -SW "$arm" > "out/arm7_034i/${name}_sections.txt"
+            readelf -sW "$arm" > "out/arm7_034i/${name}_symbols.txt"
+            readelf -sW "$arm" | awk '$1 ~ /^[0-9]+:$/ && $3 ~ /^[0-9]+$/ {print $3, $8}' | sort -nr > "out/arm7_034i/${name}_symbols_by_sections.txt"
+          done
           python3 scripts/audit-arm7-layout-034i.py --label G1_CORE --elf dsi/probe-034g-core/arm7/build/arm7.elf --nds dsi/probe-034g-core/DSIRB_034G_CORE.nds --output out/arm7_034i/G1_layout.json
           python3 scripts/audit-arm7-layout-034i.py --label H1_LINK --elf dsi/probe-034h-link/arm7/build/arm7.elf --nds dsi/probe-034h-link/DSIRB_034H_LINK.nds --output out/arm7_034i/H1_layout.json
           sha256sum dsi/probe-034g-core/DSIRB_034G_CORE.nds dsi/probe-034h-link/DSIRB_034H_LINK.nds > out/arm7_034i/nds_sha256.txt
-          echo '===== G1 size ====='; cat out/arm7_034i/G1_size.txt
-          echo '===== H1 size ====='; cat out/arm7_034i/H1_size.txt
-          echo '===== G1 top 25 symbols ====='; tail -25 out/arm7_034i/G1_symbols_sorted.txt
-          echo '===== H1 top 25 symbols ====='; tail -25 out/arm7_034i/H1_symbols_sorted.txt
+          echo '===== G1 size ====='; cat out/arm7_034i/G1_sections.txt
+          echo '===== H1 size ====='; cat out/arm7_034i/H1_sections.txt
+          echo '===== G1 top 25 symbols ====='; tail -25 out/arm7_034i/G1_symbols_by_size.txt
+          echo '===== H1 top 25 symbols ====='; tail -25 out/arm7_034i/H1_symbols_by_size.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: DSIRB_034I_ARM7_STATIC_LAYOUT_NO_ROM

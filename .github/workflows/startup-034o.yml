@@ -1,0 +1,72 @@
+name: DSi 034O isolate FIFO regression in successful 034L baseline
+on:
+  push:
+    branches: [qa/dsi-fifo-regression-isolation-034o-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify C sources isolate precisely one variable per step
+        run: python3 tests/test-probe-034o.py
+      - name: Build original L0 and O0/O1/O2 in exact BlocksDS 1.24.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034l-control
+              make -C dsi/probe-034o-ui
+              make -C dsi/probe-034o-send
+              make -C dsi/probe-034o-receive'
+      - name: Verify CPU segment identity and NDS structural integrity
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          for item in ui send receive; do
+            f="dsi/probe-034o-$item"
+            n=$(find "$f" -maxdepth 1 -name 'DSIRB_034O_*.nds' -print -quit)
+            test -n "$n"
+            python3 tests/validate-blocks-header-034e.py "$n" > "out/${item}_header.json"
+          done
+          python3 scripts/compare-034o.py \
+            dsi/probe-034l-control/DSIRB_034L_CONTROL.nds \
+            dsi/probe-034o-ui/DSIRB_034O_UI_ONLY.nds \
+            dsi/probe-034o-send/DSIRB_034O_SEND_ONLY.nds \
+            dsi/probe-034o-receive/DSIRB_034O_RX_POLL.nds \
+            out/CPU_AB_comparison.json
+          for item in ui send receive; do
+            readelf -lW "dsi/probe-034o-$item/arm7/build/arm7.elf" > "out/${item}_arm7_program_headers.txt"
+          done
+      - name: Stage only isolated SD files, instructions and digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034O
+          cp dsi/probe-034o-ui/DSIRB_034O_UI_ONLY.nds out/nds/DSiRABridge_034O/
+          cp dsi/probe-034o-send/DSIRB_034O_SEND_ONLY.nds out/nds/DSiRABridge_034O/
+          cp dsi/probe-034o-receive/DSIRB_034O_RX_POLL.nds out/nds/DSiRABridge_034O/
+          cp docs/startup-034o.md out/TESTE_034O.md
+          (cd out && sha256sum nds/DSiRABridge_034O/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034O_FIFO_ISOLATION_SD_ONLY.zip nds TESTE_034O.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034O_FIFO_ISOLATION_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034O_FIFO_ISOLATION_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034O_FIFO_ISOLATION_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/CPU_AB_comparison.json
+            out/*_header.json
+            out/*_arm7_program_headers.txt
+          retention-days: 14
+          if-no-files-found: error

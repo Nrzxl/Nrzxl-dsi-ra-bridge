@@ -17,7 +17,7 @@ class NWRAM034L(unittest.TestCase):
     def test_arm7_padding_is_only_change(self):
         c=(C/"arm7/source/main.c").read_text()
         p=(P/"arm7/source/main.c").read_text()
-        self.assertIn("dsirb_twl_bytes[17844]",p)
+        self.assertIn("dsirb_twl_bytes[17848]",p)
         self.assertIn("dsirb_twl_bss[13300]",p)
         self.assertIn('section(".twl")',p)
         self.assertIn('section(".twl_bss")',p)

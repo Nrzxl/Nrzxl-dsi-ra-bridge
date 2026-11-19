@@ -17,9 +17,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm --network none --mount "type=bind,source=$PWD,target=/src" \
-            -w /src devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5 \
-            bash -c 'export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM; export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"; make -C dsi/probe-034e-devkit'
+          mkdir -p out
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src,readonly" \
+            --mount "type=bind,source=$PWD/out,target=/out" \
+            --tmpfs /work:rw,exec,mode=1777 \
+            -w /work devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5 \
+            bash -c 'export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM; export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"; cp -R /src/dsi/probe-034e-devkit /work/scout; make -C /work/scout; cp /work/scout/DSIRB_034E_DEVKIT.nds /out/'
       - name: Compile B with BlocksDS minimal default ARM7 core
         shell: bash
         run: |
@@ -31,16 +35,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds
+          test -s out/DSIRB_034E_DEVKIT.nds
           test -s dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds
-          node scripts/validate-nds.cjs dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds out_A.json
+          node scripts/validate-nds.cjs out/DSIRB_034E_DEVKIT.nds out_A.json
           node scripts/validate-nds.cjs dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds out_B.json
       - name: Package only new removable 034E directory
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p out/nds/DSiRABridge_034E
-          cp dsi/probe-034e-devkit/DSIRB_034E_DEVKIT.nds out/nds/DSiRABridge_034E/
+          cp out/DSIRB_034E_DEVKIT.nds out/nds/DSiRABridge_034E/
           cp dsi/probe-034e-blocks/DSIRB_034E_BLOCKS.nds out/nds/DSiRABridge_034E/
           cp docs/startup-ab-034e.md out/TESTE_034E.md
           (cd out && sha256sum nds/DSiRABridge_034E/*.nds > SHA256SUMS.txt)

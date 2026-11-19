@@ -1,0 +1,82 @@
+name: DSi 034R NTR vs TWL linked symbols isolated from verified P0
+on:
+  push:
+    branches: [qa/dsi-ntr-twl-split-034r-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate strict physical-control and single-symbol source deltas
+        run: python3 tests/test-probe-034r.py
+      - name: Build physical P0 and R0/R1/R2 in pinned BlocksDS 1.24 (no network)
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034p-control
+              make -C dsi/probe-034r-control
+              make -C dsi/probe-034r-ntr-link
+              make -C dsi/probe-034r-twl-link'
+      - name: Fail closed on CPU payloads, link partition, ELF memory and map
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/audit
+          for probe in control ntr-link twl-link; do
+            case "$probe" in
+              control) name=DSIRB_034R_CONTROL ;;
+              ntr-link) name=DSIRB_034R_NTR_LINK ;;
+              twl-link) name=DSIRB_034R_TWL_LINK ;;
+            esac
+            python3 tests/validate-blocks-header-034e.py "dsi/probe-034r-$probe/$name.nds" > "out/audit/${probe}_header.json"
+            readelf -sW "dsi/probe-034r-$probe/arm7/build/arm7.elf" > "out/audit/${probe}_symbols.txt"
+            readelf -lSW "dsi/probe-034r-$probe/arm7/build/arm7.elf" > "out/audit/${probe}_layout.txt"
+          done
+          python3 scripts/audit_034r.py \
+            --p0-nds dsi/probe-034p-control/DSIRB_034P_CONTROL.nds \
+            --r0-nds dsi/probe-034r-control/DSIRB_034R_CONTROL.nds \
+            --r1-nds dsi/probe-034r-ntr-link/DSIRB_034R_NTR_LINK.nds \
+            --r2-nds dsi/probe-034r-twl-link/DSIRB_034R_TWL_LINK.nds \
+            --p0-elf dsi/probe-034p-control/arm7/build/arm7.elf \
+            --r0-elf dsi/probe-034r-control/arm7/build/arm7.elf \
+            --r1-elf dsi/probe-034r-ntr-link/arm7/build/arm7.elf \
+            --r2-elf dsi/probe-034r-twl-link/arm7/build/arm7.elf \
+            --p0-map dsi/probe-034p-control/arm7/build/arm7.map \
+            --r0-map dsi/probe-034r-control/arm7/build/arm7.map \
+            --r1-map dsi/probe-034r-ntr-link/arm7/build/arm7.map \
+            --r2-map dsi/probe-034r-twl-link/arm7/build/arm7.map \
+            --json-out out/audit/AB_034R.json --md-out out/audit/AB_034R.md
+          cp docs/startup-034r.md out/audit/TESTE_034R.md
+      - name: Package SD-only probes, no games or loader replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034R
+          cp dsi/probe-034r-control/DSIRB_034R_CONTROL.nds out/nds/DSiRABridge_034R/
+          cp dsi/probe-034r-ntr-link/DSIRB_034R_NTR_LINK.nds out/nds/DSiRABridge_034R/
+          cp dsi/probe-034r-twl-link/DSIRB_034R_TWL_LINK.nds out/nds/DSiRABridge_034R/
+          cp docs/startup-034r.md out/TESTE_034R.md
+          (cd out && sha256sum nds/DSiRABridge_034R/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034R_NTR_TWL_SPLIT_SD_ONLY.zip nds TESTE_034R.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034R_NTR_TWL_SPLIT_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+          echo '### 034R: STATIC APPROVED, HARDWARE NOT_RUN' >> "$GITHUB_STEP_SUMMARY"
+          sed -n '1,80p' out/audit/AB_034R.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034R_NTR_TWL_SPLIT_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034R_NTR_TWL_SPLIT_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/audit/
+          retention-days: 14
+          if-no-files-found: error

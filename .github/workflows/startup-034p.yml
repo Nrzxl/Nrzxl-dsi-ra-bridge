@@ -1,0 +1,87 @@
+name: DSi 034P linked DSWiFi symbol AB from physical O2 baseline
+on:
+  push:
+    branches: [qa/dsi-dswifi-symbol-isolation-034p-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Source gates physical O2 baseline and link-only semantics
+        run: python3 tests/test-probe-034p.py
+      - name: Rebuild physical O2 and P0 P1 P2 with pinned BlocksDS SDK1.24
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0@sha256:779f6193d1030c62e60d1f0f39c3e32cf4045c0bd224a45c0ceadf9d9ab01a51 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034o-receive
+              make -C dsi/probe-034p-control
+              make -C dsi/probe-034p-update-link
+              make -C dsi/probe-034p-fifo-link'
+      - name: Validate NDS bounds, direct payload hashes and ARM7 ELF symbol closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/audit
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034p-control/DSIRB_034P_CONTROL.nds > out/audit/P0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034p-update-link/DSIRB_034P_UPDATE_LINK.nds > out/audit/P1_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034p-fifo-link/DSIRB_034P_FIFO_LINK.nds > out/audit/P2_header.json
+          python3 scripts/compare-034p.py \
+            dsi/probe-034o-receive/DSIRB_034O_RX_POLL.nds \
+            dsi/probe-034p-control/DSIRB_034P_CONTROL.nds \
+            dsi/probe-034p-update-link/DSIRB_034P_UPDATE_LINK.nds \
+            dsi/probe-034p-fifo-link/DSIRB_034P_FIFO_LINK.nds \
+            out/audit/CPU_AB_comparison.json
+          for step in control update-link fifo-link; do
+            elf="dsi/probe-034p-$step/arm7/build/arm7.elf"
+            readelf -sW "$elf" > "out/audit/$step.symbols.txt"
+            readelf -lW "$elf" > "out/audit/$step.program_headers.txt"
+          done
+          if grep -Eq ' Wifi_Update$| installWifiFIFO$' out/audit/control.symbols.txt; then
+            echo 'BLOCKED P0 contains WiFi symbols'; exit 2
+          fi
+          grep -Eq ' Wifi_Update$' out/audit/update-link.symbols.txt || { echo 'BLOCKED no Wifi_Update in P1'; exit 2; }
+          if grep -Eq ' installWifiFIFO$' out/audit/update-link.symbols.txt; then
+            echo 'BLOCKED P1 prematurely linked installWifiFIFO'; exit 2
+          fi
+          grep -Eq ' Wifi_Update$' out/audit/fifo-link.symbols.txt || { echo 'BLOCKED no Wifi_Update in P2'; exit 2; }
+          grep -Eq ' installWifiFIFO$' out/audit/fifo-link.symbols.txt || { echo 'BLOCKED no installWifiFIFO in P2'; exit 2; }
+          python3 scripts/audit-arm7-layout-034i.py \
+            --label P0_CORE --elf dsi/probe-034p-control/arm7/build/arm7.elf \
+            --nds dsi/probe-034p-control/DSIRB_034P_CONTROL.nds --output out/audit/P0_layout.json
+          python3 scripts/audit-arm7-layout-034i.py \
+            --label P1_UPDATE_LINK --elf dsi/probe-034p-update-link/arm7/build/arm7.elf \
+            --nds dsi/probe-034p-update-link/DSIRB_034P_UPDATE_LINK.nds --output out/audit/P1_layout.json
+          python3 scripts/audit-arm7-layout-034i.py \
+            --label P2_FIFO_LINK --elf dsi/probe-034p-fifo-link/arm7/build/arm7.elf \
+            --nds dsi/probe-034p-fifo-link/DSIRB_034P_FIFO_LINK.nds --output out/audit/P2_layout.json
+      - name: Package separated SD-only probes and SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034P
+          cp dsi/probe-034p-control/DSIRB_034P_CONTROL.nds out/nds/DSiRABridge_034P/
+          cp dsi/probe-034p-update-link/DSIRB_034P_UPDATE_LINK.nds out/nds/DSiRABridge_034P/
+          cp dsi/probe-034p-fifo-link/DSIRB_034P_FIFO_LINK.nds out/nds/DSiRABridge_034P/
+          cp docs/startup-034p.md out/TESTE_034P.md
+          (cd out && sha256sum nds/DSiRABridge_034P/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034P_DSWIFI_SYMBOL_GATES_SD_ONLY.zip nds TESTE_034P.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034P_DSWIFI_SYMBOL_GATES_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034P_DSWIFI_SYMBOL_GATES_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034P_DSWIFI_SYMBOL_GATES_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/audit/
+          retention-days: 14
+          if-no-files-found: error

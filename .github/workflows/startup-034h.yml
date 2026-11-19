@@ -1,0 +1,53 @@
+name: DSi 034H DSWiFi link vs user-gated FIFO init
+on:
+  push:
+    branches: [qa/dsi-dswifi-link-vs-init-034h-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fail-closed source safety checks
+        run: python3 tests/test-probe-034h.py
+      - name: Build linked-only and gated WiFi FIFO probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0 \
+            bash -c 'set -euo pipefail; make -C dsi/probe-034h-link; make -C dsi/probe-034h-gate'
+      - name: Validate NDS header, ARM entry and bounds
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034h-link/DSIRB_034H_LINK.nds | tee out/H1.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034h-gate/DSIRB_034H_GATE.nds | tee out/H2.json
+      - name: Package standalone removable SD probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034H
+          cp dsi/probe-034h-link/DSIRB_034H_LINK.nds out/nds/DSiRABridge_034H/
+          cp dsi/probe-034h-gate/DSIRB_034H_GATE.nds out/nds/DSiRABridge_034H/
+          cp docs/startup-034h.md out/TESTE_034H.md
+          (cd out && sha256sum nds/DSiRABridge_034H/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034H_WIFI_LINK_GATE_SD_ONLY.zip nds TESTE_034H.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034H_WIFI_LINK_GATE_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034H_WIFI_LINK_GATE_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034H_WIFI_LINK_GATE_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/H1.json
+            out/H2.json
+          if-no-files-found: error
+          retention-days: 14

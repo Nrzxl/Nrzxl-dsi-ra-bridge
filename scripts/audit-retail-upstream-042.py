@@ -34,13 +34,15 @@ def audit(root):
       ("dscm_vblank_count","vblank_entry:","halt_entry:",
        "mrc","DSCM_VERSION"))
     module=must(root/"dscheevos/module/src/module.c",
-      ("vblank_poll","module_idle","rc_client_do_frame"))
+      ("vblank_poll","module_idle"))
+    core=must(root/"dscheevos/core/src/dscheevos.c",
+      ("rc_client_do_frame","dsc_capture","dsc_vblank_queue"))
     linker=must(root/"dscheevos/module/module.ld",
       ("ORIGIN = 0x02D80000","0x00200000","__stack_top",
        "ASSERT","__image_size"))
     must(root/"README.md",("Work in progress","not approved by RetroAchievements",
                             "not yet tried on a real DSi"))
-    if "session" not in hooks or "rc_client_do_frame" not in module:
+    if "session" not in hooks or "rc_client_do_frame" not in core:
         raise ValueError("no game runtime evaluation path")
     return {
       "status":"PINNED_SOURCE_HOOK_CONTRACT_PASS_NOT_HARDWARE",

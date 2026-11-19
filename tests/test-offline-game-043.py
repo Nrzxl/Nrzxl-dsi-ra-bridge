@@ -81,7 +81,7 @@ class Offline043(unittest.TestCase):
         self.assertEqual(data[0x1CD],0)
         self.assertEqual(data[0x1CE],1)
         self.assertEqual(data[0x1F6],0)
-        self.assertEqual(data[0x16C:0x1AC],bytes(64))
+        self.assertEqual(data[0x16C:0x1AC],p.fixed_ascii(p.QA_TOKEN,64))
         self.assertIn(b"LOCAL QA ONLY",data)
         self.assertNotIn(b"awardachievement",data)
         self.assertNotIn(b"password",data.lower())

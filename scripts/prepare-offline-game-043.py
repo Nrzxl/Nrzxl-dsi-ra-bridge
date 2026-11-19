@@ -31,6 +31,7 @@ DSCHEEVOS_PIN="59e9978be7b9c3788357ef0a609caf9dc8ea74f3"
 BOOT_PIN="af351f096dd71a37e0e5b18d9709bcc0fb70342f"
 RC_PIN="754965ef28db22b0411bfccbde39154cd09e6b79"
 SPECTATOR=0x01
+QA_TOKEN="HANNA_043_LOCAL_FAKE_TOKEN"
 EXPECTED_FMT="DSIRB043_OFFLINE_SPECTATOR_ONLY"
 
 def sha256(path):
@@ -106,7 +107,7 @@ def make_session(rom_path,game_hash,now=None):
         # DSi RTC stores local clock, upstream mksession mirrors it as UTC.
         now=calendar.timegm(time.localtime())
     replies=[
-      {"Success":True,"User":"LOCAL_QA","Token":"","Score":0,"SoftcoreScore":0,"Messages":0},
+      {"Success":True,"User":"LOCAL_QA","Token":QA_TOKEN,"Score":0,"SoftcoreScore":0,"Messages":0},
       synthetic_set(),
       {"Success":True,"Unlocks":[],"HardcoreUnlocks":[],"ServerNow":int(now)}]
     body=bytearray()
@@ -125,7 +126,7 @@ def make_session(rom_path,game_hash,now=None):
     head[0x0C:0x0C+256]=fixed_ascii(rom_path,256)
     head[0x10C:0x10C+64]=fixed_ascii("http://127.0.0.1:9",64)
     head[0x14C:0x14C+32]=fixed_ascii("LOCAL_QA",32)
-    head[0x16C:0x16C+64]=fixed_ascii("",64)
+    head[0x16C:0x16C+64]=fixed_ascii(QA_TOKEN,64)
     head[0x1AC:0x1AC+33]=fixed_ascii(game_hash,33)
     head[0x1CD]=0  # softcore - but no awards
     head[0x1CE]=SPECTATOR
@@ -141,8 +142,8 @@ def verify_session(data,rom_hash):
         raise ValueError("Offline session invalid")
     if data[0x1CD]!=0 or data[0x1CE]!=SPECTATOR or data[0x1F6]!=0:
         raise ValueError("Session must be spectator, softcore, offline")
-    if data[0x16C:0x1AC].strip(b"\0"):
-        raise ValueError("Session must never contain login token")
+    if data[0x16C:0x1AC]!=fixed_ascii(QA_TOKEN,64):
+        raise ValueError("Session must have only the public fake QA token (never personal credentials)")
     if data[0x1AC:0x1AC+32].decode("ascii")!=rom_hash:
         raise ValueError("Session hash mismatch")
     if data[0x0C:0x0C+len(GAME_PATH)]!=GAME_PATH.encode("ascii"):

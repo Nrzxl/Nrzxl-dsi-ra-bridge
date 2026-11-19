@@ -12,8 +12,9 @@ Jogo-alvo: Super Mario 64 DS Europa, código ASMP, DS/NTR, preflight 042 PASS.
 - Caminhos dedicados: sd:/DSiRABridge_043/bootstrap.ini,
   sd:/DSiRABridge_043/dscheevos/session.bin, ROM e save exclusivos.
 - O bootstrap ARM9, bootloader ARM7 e módulo ARM9 exigem cada um
-  modo SPECTATOR com rede desligada, hardcore desligado. Sem login ou
-  envio de achievements oficiais. PMK não é lida pelo código de sessão.
+  modo SPECTATOR com rede desligada, hardcore desligado. Token fictício
+  fixo HANNA_043_LOCAL_FAKE_TOKEN satisfaz a API local, não uma conta RA.
+  Não há login de verdade ou envio de achievements oficiais. PMK não é lida.
 - O pacote tem conquistas sintéticas locais para 300 e 900 frames
   com leitura DS RAM lógica 0x000000, e uma condição impossível.
   São apenas marcadores QA, não IDs reais RetroAchievements.

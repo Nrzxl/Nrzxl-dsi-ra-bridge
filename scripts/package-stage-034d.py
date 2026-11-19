@@ -37,7 +37,7 @@ USERNAME =
 TOKEN =
 """
 
-GUIDE = """# DSi RA Bridge 0.3.4-C: experimental isolated offline NTR boot
+GUIDE = """# DSi RA Bridge 0.3.4-D: gated diagnostic isolated offline NTR boot
 
 DO NOT RUN ON THE PRIMARY SD WITHOUT BACKUP AND A SECOND TEST CARD.
 This gate is NOT approved or tested on physical hardware. It does NOT earn
@@ -118,14 +118,16 @@ def main():
             raise ValueError("invalid binary " + src)
         files[target] = data
     files.update({
-        "PREPARE_034D.ps1": (Path(__file__).resolve().parent / "prepare-sd-offline-034d.ps1").read_bytes(),
+        "PREPARE_034D.ps1": (Path(__file__).resolve().parent / "prepare-sd-stage-034d.ps1").read_bytes(),
         "_nds/dsirb034d/nds-bootstrap.ini": INI.encode(),
         "_nds/dsirb034d/dscheevos.ini": SETTINGS.encode(),
         "nds/DSiRABridge_034D/README.txt": GUIDE.encode(),
         "_nds/dsirb034d/README.txt": GUIDE.encode(),
     })
     status = {
-        "version": "0.3.4-D-offline-only",\n        "hardware_validation": "NOT_RUN_034D",\n        "diagnostic_gates": ["S0_UI","S1_SD","S2_INI","S3_ROM","S4_BOOT_CONFIRM"],
+        "version": "0.3.4-D-offline-only",
+        "hardware_validation": "NOT_RUN_034D",
+        "diagnostic_gates": ["S0_UI","S1_SD","S2_INI","S3_ROM","S4_BOOT_CONFIRM"],
         "bridge_commit": a.commit,
         "upstream": "skierrz/dscheevos@59e9978be7b9c3788357ef0a609caf9dc8ea74f3",
         "bootstrap": "skierrz/nds-bootstrap@af351f096dd71a37e0e5b18d9709bcc0fb70342f",

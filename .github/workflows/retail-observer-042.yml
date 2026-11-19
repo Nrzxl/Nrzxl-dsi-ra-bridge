@@ -1,0 +1,84 @@
+name: DSi 042 retail observer source contract and offline core
+on:
+  push:
+    branches: [qa/dsi-retail-game-observer-042-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  retail-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/dscheevos
+          ref: 59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+          path: upstream/retail-042
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/nds-bootstrap
+          ref: af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          path: upstream/retail-042/external/nds-bootstrap
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/rcheevos
+          ref: 754965ef28db22b0411bfccbde39154cd09e6b79
+          path: upstream/retail-042/external/rcheevos
+          persist-credentials: false
+      - name: Local preflight unit tests and 041 source preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/retail-042
+          python3 tests/test-retail-preflight-042.py
+          python3 tests/test-observer-wifi-041.py
+          node tests/wire-observer-041.cjs
+      - name: Audit precise game OS_Halt/VBlank hooks and require source revisions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/audit-retail-upstream-042.py upstream/retail-042 \
+            --output out/retail-042/retail-source-audit.json
+      - name: Run actual upstream DScheevos memory evaluator core on host
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C upstream/retail-042/dscheevos/core test \
+            2>&1 | tee out/retail-042/upstream-core-test.txt
+      - name: Static memory and licensing evidence (NOT installable)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,pathlib
+          p=pathlib.Path("out/retail-042/retail-source-audit.json")
+          a=json.loads(p.read_text())
+          assert a["hardware_boot_allowed"] is False
+          assert a["official_achievements_enabled"] is False
+          assert a["installable_nds_included"] is False
+          assert a["status"]=="PINNED_SOURCE_HOOK_CONTRACT_PASS_NOT_HARDWARE"
+          print("042 retail source gated: no ROM, no installable .nds, no Wi-Fi tokens")
+          PY
+          echo "### DSi 042 retail source audit PASS (physical NOT_RUN)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 041 PHYSICAL PASS preserved on separate branch" >> "$GITHUB_STEP_SUMMARY"
+          echo "- DScheevos/nds-bootstrap commit SHA and core tests pinned" >> "$GITHUB_STEP_SUMMARY"
+          echo "- No Nintendo DS game was booted or modified; no NAND/Unlaunch/_nds changes" >> "$GITHUB_STEP_SUMMARY"
+          echo "- PMK/firmware/credential/session side-effects in upstream detected: retail hardware boot BLOCKED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- RetroAchievements actual awards 0; no login or server requests" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: DSi_RA_Bridge_042_Retail_Source_Only_NOT_HARDWARE_READY
+          path: |
+            out/retail-042/
+            docs/retail-observer-042.md
+            scripts/retail-preflight-042.py
+            scripts/audit-retail-upstream-042.py
+          retention-days: 14
+          if-no-files-found: error

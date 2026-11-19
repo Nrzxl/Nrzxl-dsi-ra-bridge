@@ -122,7 +122,9 @@ jobs:
               export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
               make -C retail nightly
             ' 2>&1 | tee out/043/bootstrap-build.txt
-          grep -q '\-DDSCHEEVOS_RCHASH' out/043/bootstrap-build.txt
+          # ds_rules echoes source filenames (not compiler flags): prove real C sources were compiled
+          grep -q 'hash_rc_hash.c' out/043/bootstrap-build.txt
+          grep -q 'hash_rc_hash_rom.c' out/043/bootstrap-build.txt
       - name: Check binaries and stage sample offline package without user ROM
         shell: bash
         run: |

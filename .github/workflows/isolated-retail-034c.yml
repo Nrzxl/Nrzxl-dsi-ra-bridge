@@ -1,0 +1,113 @@
+name: DSi 034C isolated retail offline boot (NO RELEASE)
+on:
+  push:
+    branches: [feat/dsi-ra-bridge-isolated-retail-034c]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-gates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Synthetic source isolation and no credentials checks
+        run: |
+          set -euo pipefail
+          python3 tests/isolation-034c.py
+          python3 tests/retail_preflight_034.py
+          python3 tests/retail_memory_gate_034b.py
+  isolated-build:
+    needs: source-gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/dscheevos
+          ref: 59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+          path: third_party/dscheevos-034c
+          submodules: false
+          persist-credentials: false
+      - name: Fetch only pinned GPL build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          git -C third_party/dscheevos-034c submodule update --init --recursive \
+            external/nds-bootstrap external/rcheevos external/mbedtls \
+            external/lwip external/nds-bootloader
+          test "$(git -C third_party/dscheevos-034c/external/nds-bootstrap rev-parse HEAD)" = af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          test "$(git -C third_party/dscheevos-034c rev-parse HEAD)" = 59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+      - name: Apply and verify fully isolated GPL source paths
+        run: |
+          python3 scripts/isolate-dscheevos-034c.py --upstream third_party/dscheevos-034c --mode apply
+          python3 scripts/isolate-dscheevos-034c.py --upstream third_party/dscheevos-034c --mode verify
+      - name: Compile upstream retail nds-bootstrap (GPL) with isolated config
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -O2 -static third_party/dscheevos-034c/external/nds-bootstrap/lzss.c -o "$RUNNER_TEMP/lzss"
+          docker run --rm --network none -v "$PWD/third_party/dscheevos-034c:/src" \
+            -v "$RUNNER_TEMP/lzss:/usr/local/bin/lzss:ro" \
+            -w /src/external/nds-bootstrap devkitpro/devkitarm:20241104 \
+            bash -c 'git config --global safe.directory "*" && make package-nightly'
+      - name: Compile RA module (GPL), not enabled on physical boot gate
+        shell: bash
+        run: |
+          docker run --rm --network none -v "$PWD/third_party/dscheevos-034c:/src" \
+            -w /src devkitpro/devkitarm:20241104 make -C dscheevos/module
+      - name: Compile isolated DSi loader
+        shell: bash
+        run: |
+          docker run --rm --network none -v "$PWD/third_party/dscheevos-034c:/src" \
+            -w /src devkitpro/devkitarm:20260610 make -C dscheevos/launcher/loader
+      - name: Compile isolated launcher offline defaults
+        shell: bash
+        run: |
+          docker run --rm --network none -v "$PWD/third_party/dscheevos-034c:/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0 make -C dscheevos/launcher
+      - name: Fail closed on legacy stable paths in resulting launch binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          root=third_party/dscheevos-034c
+          for file in "$root/dscheevos/launcher/dscheevos-launcher.nds" \
+             "$root/external/nds-bootstrap/bin/nds-bootstrap-nightly.nds" \
+             "$root/dscheevos/module/build/dscheevos9.bin"; do
+            test -s "$file"
+            for forbidden in "_nds/nds-bootstrap.ini" "_nds/nds-bootstrap/" "_nds/dscheevos/"; do
+              if LC_ALL=C grep -aFq "$forbidden" "$file"; then
+                echo "::error::Unisolated stable file path in $(basename "$file"): $forbidden"
+                exit 1
+              fi
+            done
+          done
+          python3 scripts/isolate-dscheevos-034c.py --upstream "$root" --mode verify
+      - name: Build offline-only SD package and full corresponding GPL source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 scripts/package-isolated-034c.py \
+            --upstream third_party/dscheevos-034c \
+            --output out/DSIRB_034C_OFFLINE_ISOLATED_NOT_HARDWARE_TESTED.zip \
+            --commit "$GITHUB_SHA"
+          tar -czf out/DSIRB_034C_CORRESPONDING_SOURCE.tar.gz \
+            --exclude='.git' --exclude='build' --exclude='out' \
+            --exclude='*.o' --exclude='*.elf' \
+            -C third_party/dscheevos-034c .
+          sha256sum out/*.zip out/*.tar.gz > out/ARTIFACT_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSIRB_034C_OFFLINE_SOURCE_AND_TEST_BUNDLE
+          path: |
+            out/DSIRB_034C_OFFLINE_ISOLATED_NOT_HARDWARE_TESTED.zip
+            out/DSIRB_034C_CORRESPONDING_SOURCE.tar.gz
+            out/ARTIFACT_SHA256SUMS.txt
+          retention-days: 14
+          if-no-files-found: error

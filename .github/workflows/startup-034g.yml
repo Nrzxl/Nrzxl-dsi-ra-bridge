@@ -1,0 +1,56 @@
+name: DSi 034G ARM7 DSWiFi incremental startup diagnostics
+on:
+  push:
+    branches: [qa/dsi-arm7-wifi-isolation-034g-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Incremental source safety gates
+        run: python3 tests/test-probe-034g.py
+      - name: Build ARM7 core, WiFi FIFO, WiFi VBlank probes
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.24.0 \
+            bash -c 'set -euo pipefail; make -C dsi/probe-034g-core; make -C dsi/probe-034g-fifo; make -C dsi/probe-034g-update'
+      - name: Validate NDS structures
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034g-core/DSIRB_034G_CORE.nds | tee out/G1.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034g-fifo/DSIRB_034G_FIFO.nds | tee out/G2.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034g-update/DSIRB_034G_UPDATE.nds | tee out/G3.json
+      - name: Package isolated read-only SD diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034G
+          cp dsi/probe-034g-core/DSIRB_034G_CORE.nds out/nds/DSiRABridge_034G/
+          cp dsi/probe-034g-fifo/DSIRB_034G_FIFO.nds out/nds/DSiRABridge_034G/
+          cp dsi/probe-034g-update/DSIRB_034G_UPDATE.nds out/nds/DSiRABridge_034G/
+          cp docs/startup-034g.md out/TESTE_034G.md
+          (cd out && sha256sum nds/DSiRABridge_034G/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034G_ARM7_ISOLATION_SD_ONLY.zip nds TESTE_034G.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034G_ARM7_ISOLATION_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034G_ARM7_ISOLATION_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034G_ARM7_ISOLATION_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/G1.json
+            out/G2.json
+            out/G3.json
+          if-no-files-found: error
+          retention-days: 14

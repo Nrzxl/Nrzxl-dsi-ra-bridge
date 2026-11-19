@@ -17,7 +17,7 @@ class NDS042(unittest.TestCase):
   with self.assertRaisesRegex(ValueError,"CRC"):v.validate(b)
  def test_wrong_game(self):
   b=sample();b[0]=0
-  with self.assertRaisesRegex(ValueError,"not expected"):v.validate(b)
+  with self.assertRaisesRegex(ValueError,"title or game code"):v.validate(b)
  def test_segment(self):
   b=sample();struct.pack_into("<I",b,0x2c,0xFFFFFFFF)
   struct.pack_into("<H",b,0x15e,v.crc16(b[:0x15e]))

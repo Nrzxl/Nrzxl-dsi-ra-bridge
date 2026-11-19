@@ -15,8 +15,8 @@ def validate(raw):
     if len(raw)<0x200:raise ValueError("ROM truncated")
     title=raw[:12].rstrip(b"\0").decode("ascii","replace")
     game=raw[12:16].decode("ascii","replace")
-    if not title.startswith("nds-bootstra") or game!="KBSE":
-        raise ValueError("not expected pinned nds-bootstrap original ROM")
+    if not title or not all(32<=ord(ch)<127 for ch in title) or len(game)!=4 or not all(ch.isalnum() for ch in game):
+        raise ValueError("NDS title or game code not printable: "+repr((title,game)))
     if struct.unpack_from("<H",raw,0x15e)[0]!=crc16(raw[:0x15e]):
         raise ValueError("CRC16 invalid")
     if raw[0x12] not in (0,2,3):raise ValueError("invalid NDS unit")

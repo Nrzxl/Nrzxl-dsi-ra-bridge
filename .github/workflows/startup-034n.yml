@@ -1,0 +1,72 @@
+name: DSi 034N ARM7 stage markers vs DSWiFi Wifi_Update symbol-only
+on:
+  push:
+    branches: [qa/dsi-arm7-stage-link-update-034n-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Fail-closed source architecture + no network/game checks
+        run: python3 tests/test-probe-034n.py
+      - name: Build both N0/N1 in pinned BlocksDS v1.25.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/src" \
+            -w /src skylyrac/blocksds:slim-v1.25.0@sha256:c5f19b95d9c2f312e6a68ea244d2ed5120203b4b82af9785937a349096f8e5e4 \
+            bash -c 'set -euo pipefail
+              make -C dsi/probe-034n-core
+              make -C dsi/probe-034n-update-link'
+      - name: Validate NDS header / ELF bounds / retained DSWiFi symbol
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034n-core/DSIRB_034N_CORE.nds > out/N0_header.json
+          python3 tests/validate-blocks-header-034e.py dsi/probe-034n-update-link/DSIRB_034N_UPDATE_LINK.nds > out/N1_header.json
+          python3 scripts/audit-arm7-layout-034i.py --label N0_CORE --elf dsi/probe-034n-core/arm7/build/arm7.elf --nds dsi/probe-034n-core/DSIRB_034N_CORE.nds --output out/N0_layout.json
+          python3 scripts/audit-arm7-layout-034i.py --label N1_UPDATE_LINK --elf dsi/probe-034n-update-link/arm7/build/arm7.elf --nds dsi/probe-034n-update-link/DSIRB_034N_UPDATE_LINK.nds --output out/N1_layout.json
+          python3 scripts/compare-034n.py out/N0_layout.json out/N1_layout.json out/N0_N1_compare.json
+          readelf -sW dsi/probe-034n-core/arm7/build/arm7.elf > out/N0_symbols.txt
+          readelf -sW dsi/probe-034n-update-link/arm7/build/arm7.elf > out/N1_symbols.txt
+          if grep -Eq ' [Ww]ifi_Update$' out/N0_symbols.txt; then echo 'BLOCKED N0 has Wifi_Update'; exit 2; fi
+          grep -Eq ' [Ww]ifi_Update$' out/N1_symbols.txt || { echo 'BLOCKED N1 has no linked Wifi_Update'; exit 2; }
+          readelf -lW dsi/probe-034n-core/arm7/build/arm7.elf > out/N0_program_headers.txt
+          readelf -lW dsi/probe-034n-update-link/arm7/build/arm7.elf > out/N1_program_headers.txt
+          test "$(sha256sum dsi/probe-034n-core/source/main.c | cut -d' ' -f1)" = "$(sha256sum dsi/probe-034n-update-link/source/main.c | cut -d' ' -f1)"
+      - name: Package read-only SD directory and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/nds/DSiRABridge_034N
+          cp dsi/probe-034n-core/DSIRB_034N_CORE.nds out/nds/DSiRABridge_034N/
+          cp dsi/probe-034n-update-link/DSIRB_034N_UPDATE_LINK.nds out/nds/DSiRABridge_034N/
+          cp docs/startup-034n.md out/TESTE_034N.md
+          (cd out && sha256sum nds/DSiRABridge_034N/*.nds > SHA256SUMS.txt)
+          (cd out && zip -qr DSi_RA_Bridge_034N_ARM7_STAGES_SD_ONLY.zip nds TESTE_034N.md SHA256SUMS.txt)
+          sha256sum out/DSi_RA_Bridge_034N_ARM7_STAGES_SD_ONLY.zip > out/ZIP_SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_RA_Bridge_034N_STAGES_LINK_UPDATE_SD_ONLY
+          path: |
+            out/DSi_RA_Bridge_034N_ARM7_STAGES_SD_ONLY.zip
+            out/ZIP_SHA256SUMS.txt
+            out/N0_header.json
+            out/N1_header.json
+            out/N0_layout.json
+            out/N1_layout.json
+            out/N0_N1_compare.json
+            out/N0_symbols.txt
+            out/N1_symbols.txt
+            out/N0_program_headers.txt
+            out/N1_program_headers.txt
+          if-no-files-found: error
+          retention-days: 14

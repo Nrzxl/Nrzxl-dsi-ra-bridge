@@ -16,7 +16,8 @@ jobs:
       - name: Synthetic source isolation and no credentials checks
         run: |
           set -euo pipefail
-          python3 tests/isolation-034c.py\n          python3 tests/test-launch-stage-034d.py
+          python3 tests/isolation-034c.py
+          python3 tests/test-launch-stage-034d.py
           python3 tests/retail_preflight_034.py
           python3 tests/retail_memory_gate_034b.py
   isolated-build:
@@ -46,7 +47,9 @@ jobs:
       - name: Apply and verify fully isolated GPL source paths
         run: |
           python3 scripts/isolate-dscheevos-034d.py --upstream third_party/dscheevos-034d --mode apply
-          python3 scripts/isolate-dscheevos-034d.py --upstream third_party/dscheevos-034d --mode verify\n          python3 scripts/patch-launch-stage-034d.py --source third_party/dscheevos-034d --mode apply\n          python3 scripts/patch-launch-stage-034d.py --source third_party/dscheevos-034d --mode verify
+          python3 scripts/isolate-dscheevos-034d.py --upstream third_party/dscheevos-034d --mode verify
+          python3 scripts/patch-launch-stage-034d.py --source third_party/dscheevos-034d --mode apply
+          python3 scripts/patch-launch-stage-034d.py --source third_party/dscheevos-034d --mode verify
       - name: Compile upstream retail nds-bootstrap (GPL) with isolated config
         shell: bash
         run: |
@@ -93,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          python3 scripts/package-isolated-034d.py \
+          python3 scripts/package-stage-034d.py \
             --upstream third_party/dscheevos-034d \
             --output out/DSIRB_034D_OFFLINE_ISOLATED_NOT_HARDWARE_TESTED.zip \
             --commit "$GITHUB_SHA"

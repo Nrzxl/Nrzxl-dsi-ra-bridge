@@ -1,0 +1,36 @@
+name: DSi 040 consolidated recovery source evidence gates
+on:
+  push:
+    branches: [qa/dsi-recovery-one-round-040-20261119]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Recovery 040 — exact source checkpoint and physical-scope gates
+        run: python3 tests/test-recovery-040.py
+      - name: Preserve independent observer source regression
+        run: |
+          set -euo pipefail
+          python3 tests/memory-map-033.py
+          python3 tests/hello-only-033.py
+          python3 tests/independent-033.py
+      - name: Preserve original transport and format contract
+        run: |
+          set -euo pipefail
+          node tests/protocol-tests.cjs
+          node tests/nds-format-tests.cjs
+      - name: Publish status as evidence, not as hardware proof
+        shell: bash
+        run: |
+          echo '### Recovery 040 source/static gates PASS' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 0.3.0 historic network DSi physical PASS (not retested here)' >> "$GITHUB_STEP_SUMMARY"
+          echo '- 0.3.3 emulator PASS (historic); DSi physical NOT_RUN' >> "$GITHUB_STEP_SUMMARY"
+          echo '- SHA256 of user-uploaded artifacts verified separately in supplied kit; not recreated in CI' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No Wi-Fi, retail game, official RetroAchievements, NAND or Unlaunch changes in this job' >> "$GITHUB_STEP_SUMMARY"

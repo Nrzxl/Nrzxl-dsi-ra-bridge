@@ -50,13 +50,33 @@ jobs:
           assert p["status"] == "OFFICIAL_METADATA_INDEXED_RAW_TRIGGERS_PENDING"
           print("045_SYNTHETIC_COVERAGE_ONLY_PASS")
           PY
+          mkdir -p out/045/scripts
+          cp scripts/ra-set-coverage-045.py out/045/scripts/
+          cp scripts/iniciar-catalogo-ra-045.ps1 out/045/scripts/
           cp docs/ra-set-coverage-045.md out/045/
+          cat > out/045/LEIA_PRIMEIRO.txt <<'TXT'
+          DSi RA Bridge 0.4.5 - CATALOGO RA DO MARIO (WINDOWS)
+          HOST-ONLY: NENHUM .NDS, NAND, ROM, SAVE OU ATUALIZACAO DSI.
+
+          1. Entre no RetroAchievements e abra https://retroachievements.org/controlpanel.php
+          2. Abra a secao Keys e copie sua Web API Key.
+          3. No Explorador abra a pasta extraida que contem scripts/.
+          4. Na barra de endereco digite powershell e Enter.
+          5. Execute:
+             powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\iniciar-catalogo-ra-045.ps1
+          6. Cole a chave SOMENTE no prompt oculto.
+          7. O relatorio de cobertura (sem a chave) sera criado em Downloads.
+
+          NUNCA envie a chave ao chat, ao GitHub, nem publique dumps/ROM.
+          Envie apenas o RA_9983_coverage_045_*.json se desejar analise.
+          NAO copie este pacote para o SD. Preserve a versao 0.4.4.
+          TXT
           printf '%s\n' "045 HOST ONLY: no RA official metadata downloaded, no user secrets, no game patch/ROM, no DSi test. Use genuine authorized local RA metadata for the 157-entry inventory." > out/045/PHYSICAL_NOT_RUN.txt
           echo "### DSi 0.4.5: host coverage tests and synthetic-only artifact" >> "$GITHUB_STEP_SUMMARY"
-          echo "Official RA game 9983 complete set NOT collected; hardware NOT_RUN; never confuse MD5 with trigger logic" >> "$GITHUB_STEP_SUMMARY"
+          echo "Official RA game 9983 complete set NOT collected; artifact contains local Windows scripts but NO credentials; hardware NOT_RUN; never confuse MD5 with trigger logic" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: DSi_045_RA_SetCoverage_SyntheticOnly_NO_DSi
+          name: DSi_045_Catalogo_RA_Windows_PS51_NO_DSi
           path: out/045/
           retention-days: 14
           if-no-files-found: error

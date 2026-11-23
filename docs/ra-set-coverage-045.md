@@ -22,6 +22,27 @@
 6. Hardcode all physical/official award flags as **FALSE**; report remains `OFFICIAL_METADATA_INDEXED_RAW_TRIGGERS_PENDING` or `TRIGGER_ADDRESSES_INDEXED_NOT_EVALUATED`. Never put raw patch, key, ROM, save, or RAM dump into output.
 7. CI uses only fabricated metadata/conditions and verifies **no data is sent online**.
 
+### Fluxo assistido para Windows 11 / PowerShell 5.1 (recomendado)
+
+A chave fica **somente no processo local** e é introduzida em um campo oculto. A consulta GET sobre HTTPS é enviada **apenas ao domínio oficial retroachievements.org**; nenhuma chave é escrita no projeto, no relatório, no histórico do PowerShell ou nas Actions. Não enviar a chave por chat.
+
+1. Acesse https://retroachievements.org/controlpanel.php após login → **Keys** → **Web API Key**.
+2. No [PR #4](https://github.com/Nrzxl/Nrzxl-dsi-ra-bridge/pull/4), abra a branch `qa/dsi-ra-coverage-045-20261123`, clique em **Code > Download ZIP** e extraia a pasta completa em Downloads.
+3. No Explorador, abra a pasta **raiz** extraída (que contém `scripts`); digite `powershell` na barra de endereço e Enter.
+4. Execute este comando **sem inserir nenhuma chave na linha de comando**:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\iniciar-catalogo-ra-045.ps1
+```
+
+5. Quando o console solicitar `Web API Key (entrada oculta)`, cole a chave. O PowerShell não exibirá os caracteres. O script remove a variável temporária ao encerrar, inclusive quando ocorre erro.
+6. Resultado esperado: `CATALOGO_045_IMPORTADO_COM_SUCESSO`, total de conquistas e caminho do arquivo **`RA_9983_coverage_045_AAAAMMDD_HHMMSS.json`** em Downloads. O total vem da resposta oficial, **não é fixado em 157**.
+7. Se quiser revisão no ChatGPT, **envie somente esse JSON de cobertura gerado**; não envie a chave, o JSON bruto da API, ROM, arquivos de save ou patch autenticado.
+
+O assistente também aceita `-MetadataFile` apontando para um JSON legítimo já salvo localmente, para trabalhar **sem rede**. No CI Windows o mesmo caminho é testado somente com arquivo sintético.
+
+**Este passo não instala nada no DSi.** Mantemos a 0.4.4 no SD reserva, e a 0.4.3 de rollback. O catálogo importado não contém o corpo das condições RA; a etapa seguinte requer uso autorizado de definições completas e `rcheevos` por frame.
+
 ### Local use on Windows / PowerShell 5.1
 
 If you already have an **official GetGameExtended JSON export** for game 9983:

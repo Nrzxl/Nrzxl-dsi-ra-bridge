@@ -171,7 +171,7 @@ jobs:
             "module_abi":8,
             "notes":"GPL patched binaries: separate SD clone only, no official RA login/awards"
           }
-          (d/"build-manifest-043.json").write_text(json.dumps(manifest,indent=2)+"\n")
+          (d/"build-manifest-044.json").write_text(json.dumps(manifest,indent=2)+"\n")
           print(json.dumps(manifest,indent=2))
           PY
           python3 - <<'PY'
@@ -182,12 +182,12 @@ jobs:
           m=importlib.util.module_from_spec(p);p.loader.exec_module(m)
           pf=pathlib.Path("bin-tests-044/report.json")
           pf.write_text(json.dumps(m.analyze(rom,True)))
-          p=importlib.util.spec_from_file_location("p043","scripts/prepare-offline-game-044.py")
+          p=importlib.util.spec_from_file_location("p044","scripts/prepare-offline-game-044.py")
           m=importlib.util.module_from_spec(p);p.loader.exec_module(m)
           dst=pathlib.Path("bin-tests-044/stage")
           result=m.prepare(rom,pf,pathlib.Path("out/044/BINARIES/Bootstrap_044.nds"),
                            pathlib.Path("out/044/BINARIES/dscheevos9.bin"),
-                           pathlib.Path("out/044/build-manifest-043.json"),dst)
+                           pathlib.Path("out/044/build-manifest-044.json"),dst)
           assert result["status"]=="STAGED_OFFLINE_044_FOR_SPARE_SD_ONLY"
           print("Staging synthetic ROM test PASS; NOT shipped")
           PY

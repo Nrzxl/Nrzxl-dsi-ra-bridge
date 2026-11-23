@@ -84,7 +84,7 @@ jobs:
           python3 scripts/patch-retail-memory-probe-044.py upstream/dscheevos --apply \
             | tee out/044/patch-report.json
           mkdir -p out/044/PATCHES
-          git -C upstream/dscheevos diff -- dscheevos/module/src/module.c dscheevos/module/include/dscheevos_module.h \
+          git -C upstream/dscheevos diff -- dscheevos/module/src/module.c dscheevos/module/src/start.s dscheevos/module/include/dscheevos_module.h \
             > out/044/PATCHES/dscheevos-module-offline.patch
           git -C upstream/dscheevos/external/nds-bootstrap diff \
             > out/044/PATCHES/nds-bootstrap-offline.patch
@@ -97,6 +97,7 @@ jobs:
           grep -q 'qa044_scan();' upstream/dscheevos/dscheevos/module/src/module.c
           grep -q 'drawQa044' upstream/dscheevos/external/nds-bootstrap/retail/cardenginei/arm9_igm/source/dscheevosMenu.c
           grep -q '#define DSCM_VERSION 8u' upstream/dscheevos/dscheevos/module/include/dscheevos_module.h
+          grep -q '044 ABI8 status' upstream/dscheevos/dscheevos/module/src/start.s
           grep -q '#define DSCHEEVOS_VERSION         8' upstream/dscheevos/external/nds-bootstrap/retail/common/include/dscheevos_hooks.h
       - name: Build real ARM9 observer module - offline enforced
         shell: bash

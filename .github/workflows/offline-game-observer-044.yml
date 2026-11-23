@@ -154,7 +154,7 @@ jobs:
           assert m[:4]==b"DSCV" and struct.unpack_from("<I",m,4)[0]==8
           assert len(m)<=0x80000
           report=json.loads((d/"patch-report.json").read_text())
-          assert report["spectator_only"] and report["net_disabled"]
+          assert report["spectator_only"] and report["network"] is False
           assert "sd:/DSiRABridge_044/" in json.dumps(report)
           manifest={
             "format":"DSIRB044_OFFLINE_SPECTATOR_ONLY",

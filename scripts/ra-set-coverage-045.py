@@ -42,7 +42,7 @@ HEX32 = re.compile(r"^[0-9a-fA-F]{32}$")
 # Recognize ordinary rcheevos memory references only. This is not an RA
 # expression parser: AddAddress, pointer chains, indirect offsets, recall,
 # trigger modifiers and alternative groups still need rcheevos itself.
-MEM_REF = re.compile(r"(?<![A-Za-z0-9_])0x(?:[HMLUSTWXNOKQ])?([0-9a-fA-F]{1,8})\b")
+MEM_REF = re.compile(r"(?<![A-Za-z0-9])0x(?:[HMLUSTWXNOKQ])?([0-9a-fA-F]{1,8})\b")
 FORBIDDEN_OUTPUT_KEYS = {"token", "password", "apikey", "api_key", "username", "user", "email", "authorization", "cookie"}
 
 def fail(message):

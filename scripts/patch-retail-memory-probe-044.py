@@ -56,6 +56,13 @@ def plan(repo):
             raise ValueError("044 requires prior 043 patch: " + str(path))
         files[path] = replace_once(s, PREFIX_043, PREFIX_044, str(path))
 
+    # The executable header is written in assembly, not from the C macro.
+    start = repo / "dscheevos/module/src/start.s"
+    s = start.read_text(encoding="utf-8")
+    s = replace_once(s, "\t.word 7                     @ DSCM_VERSION (the module test checks it matches)",
+                     "\t.word 8                     @ DSCM_VERSION (044 ABI8 status)", str(start))
+    files[start] = s
+
     hmod = repo / "dscheevos/module/include/dscheevos_module.h"
     s = hmod.read_text(encoding="utf-8")
     s = replace_once(s, "#define DSCM_VERSION 7u", "#define DSCM_VERSION 8u", str(hmod))

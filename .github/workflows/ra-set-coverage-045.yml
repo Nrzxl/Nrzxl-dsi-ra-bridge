@@ -1,0 +1,62 @@
+name: DSi 045 official RA game-set coverage - HOST QA ONLY
+on:
+  push:
+    branches: [qa/dsi-ra-coverage-045-20261123]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ra-catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Run isolated 045 catalog and 044 baseline tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/ra-set-coverage-045.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Build SAFE synthetic-only coverage artifact; never fetch RA or ROM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/045
+          python3 - <<'PY'
+          import importlib.util, json, pathlib
+          spec=importlib.util.spec_from_file_location("qa045","scripts/ra-set-coverage-045.py")
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          metadata={"ID":9983,"Title":"Synthetic Mario 045 — NOT OFFICIAL", "Achievements":{
+            "1":{"ID":1,"Title":"Synthetic star","Description":"Collect a Power Star", "Points":1,"MemAddr":"a"*32},
+            "2":{"ID":2,"Title":"Synthetic time","Description":"Finish race under 40 seconds", "Points":1,"MemAddr":"b"*32},
+            "3":{"ID":3,"Title":"Synthetic life","Description":"Finish without taking damage", "Points":1,"MemAddr":"c"*32}
+          }}
+          p=pathlib.Path("out/045/synthetic-metadata.json")
+          p.write_text(json.dumps(metadata),encoding="utf-8")
+          PY
+          python3 scripts/ra-set-coverage-045.py \
+            --game-extended out/045/synthetic-metadata.json \
+            --out out/045/synthetic-report.json
+          python3 - <<'PY'
+          import json
+          p=json.load(open("out/045/synthetic-report.json"))
+          assert p["catalog_achievement_count"] == 3
+          assert p["raw_trigger_index"]["parsed_reference_entries"] == 0
+          assert p["gates"]["official_awards_sent"] is False
+          assert p["gates"]["physical_045_tested"] is False
+          assert p["status"] == "OFFICIAL_METADATA_INDEXED_RAW_TRIGGERS_PENDING"
+          print("045_SYNTHETIC_COVERAGE_ONLY_PASS")
+          PY
+          cp docs/ra-set-coverage-045.md out/045/
+          printf '%s\n' "045 HOST ONLY: no RA official metadata downloaded, no user secrets, no game patch/ROM, no DSi test. Use genuine authorized local RA metadata for the 157-entry inventory." > out/045/PHYSICAL_NOT_RUN.txt
+          echo "### DSi 0.4.5: host coverage tests and synthetic-only artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "Official RA game 9983 complete set NOT collected; hardware NOT_RUN; never confuse MD5 with trigger logic" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_045_RA_SetCoverage_SyntheticOnly_NO_DSi
+          path: out/045/
+          retention-days: 14
+          if-no-files-found: error

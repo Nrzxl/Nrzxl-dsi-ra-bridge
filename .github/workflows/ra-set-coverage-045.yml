@@ -60,3 +60,43 @@ jobs:
           path: out/045/
           retention-days: 14
           if-no-files-found: error
+
+  powershell-51-smoke:
+    runs-on: windows-2025
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Testar assistente RA 045 no Windows PowerShell 5.1, sem chave
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSVersionTable.PSVersion.ToString() | Write-Host
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Este teste precisa do PowerShell 5.1' }
+          py -3 --version
+          if ($LASTEXITCODE -ne 0) { throw 'Python launcher ausente' }
+          $data = @{
+            ID = 9983
+            Title = 'Synthetic Mario'
+            Achievements = @{
+              '1000' = @{
+                ID = 1000
+                Title = 'Synthetic star'
+                Description = 'Collect 1 Power Star'
+                Points = 1
+                MemAddr = ('a' * 32)
+              }
+            }
+          } | ConvertTo-Json -Depth 8
+          $inputFile = Join-Path $env:RUNNER_TEMP 'synthetic_ra9983.json'
+          $outputFile = Join-Path $env:RUNNER_TEMP 'synthetic_ra9983_045_report.json'
+          [IO.File]::WriteAllText($inputFile, $data, [Text.UTF8Encoding]::new($false))
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\iniciar-catalogo-ra-045.ps1 -MetadataFile $inputFile -OutputFile $outputFile
+          if ($LASTEXITCODE -ne 0) { throw 'Falha no fluxo PowerShell 5.1' }
+          $report = Get-Content -Raw -Encoding UTF8 -LiteralPath $outputFile | ConvertFrom-Json
+          if ($report.catalog_achievement_count -ne 1) { throw 'Contagem incorreta' }
+          if ($report.gates.official_awards_sent -ne $false) { throw 'Flag awards incorreta' }
+          if (-not $report.catalog_revision_sha256) { throw 'SHA de revisão ausente' }
+          if (Test-Path Env:\RA_WEB_API_KEY) { throw 'Nao deveria persistir chave no runner' }
+          Write-Host 'POWERSHELL_51_LOCAL_CATALOG_SMOKE_PASS'

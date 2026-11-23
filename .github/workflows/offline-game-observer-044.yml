@@ -1,0 +1,217 @@
+name: DSi 044 Mario EU dynamic RAM spectator - SPARE SD QA
+on:
+  push:
+    branches: [qa/dsi-mario-live-ram-044-20261123]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mario-asmp-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/dscheevos
+          ref: 59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+          path: upstream/dscheevos
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/nds-bootstrap
+          ref: af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          path: upstream/dscheevos/external/nds-bootstrap
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/rcheevos
+          ref: 754965ef28db22b0411bfccbde39154cd09e6b79
+          path: upstream/dscheevos/external/rcheevos
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: Mbed-TLS/mbedtls
+          ref: 068ff080b369adfac81509f9b57b2afabaf82dc5
+          path: upstream/dscheevos/external/mbedtls
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: lwip-tcpip/lwip
+          ref: 77dcd25a72509eb83f72b033d219b1d40cd8eb95
+          path: upstream/dscheevos/external/lwip
+          persist-credentials: false
+      - name: Unit tests for 043 baseline plus 044 read-only RAM probe, session and staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test-offline-game-043.py
+          python3 tests/test-offline-game-044.py
+          python3 -m py_compile scripts/patch-retail-memory-probe-044.py scripts/prepare-offline-game-044.py
+          python3 tests/test-retail-preflight-042.py
+          python3 tests/test-observer-wifi-041.py
+          node tests/wire-observer-041.cjs
+      - name: Compare 044 Python Nintendo DS hash to pinned native rcheevos C
+        shell: bash
+        run: |
+          set -euo pipefail
+          make -C upstream/dscheevos/tools/rahash
+          mkdir -p out/044 bin-tests-044
+          python3 - <<'PY'
+          import runpy,pathlib
+          m=runpy.run_path("tests/test-offline-game-043.py", run_name="not_main")
+          m["fake_rom"](pathlib.Path("bin-tests-044/synthetic_mario.nds"))
+          PY
+          c_hash=$(upstream/dscheevos/tools/rahash/rahash bin-tests-044/synthetic_mario.nds | cut -d' ' -f1)
+          py_hash=$(python3 - <<'PY'
+          import importlib.util
+          s=importlib.util.spec_from_file_location("p","scripts/prepare-offline-game-044.py")
+          m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+          print(m.ra_hash_ds("bin-tests-044/synthetic_mario.nds"))
+          PY
+          )
+          test "$c_hash" = "$py_hash"
+          echo "PINNED_RCHEEVOS_C_HASH_MATCH=$py_hash" > out/044/ds-hash-differential.txt
+      - name: Verify upstream exact SHAs and patch only disposable GPL checkouts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/audit-retail-upstream-042.py upstream/dscheevos --output out/044/upstream-audit.json
+          python3 scripts/patch-offline-retail-043.py upstream/dscheevos --apply \
+            | tee out/044/patch-report-043.json
+          python3 scripts/patch-retail-memory-probe-044.py upstream/dscheevos --apply \
+            | tee out/044/patch-report.json
+          mkdir -p out/044/PATCHES
+          git -C upstream/dscheevos diff -- dscheevos/module/src/module.c dscheevos/module/src/start.s dscheevos/module/include/dscheevos_module.h \
+            > out/044/PATCHES/dscheevos-module-offline.patch
+          git -C upstream/dscheevos/external/nds-bootstrap diff \
+            > out/044/PATCHES/nds-bootstrap-offline.patch
+          test -s out/044/PATCHES/dscheevos-module-offline.patch
+          test -s out/044/PATCHES/nds-bootstrap-offline.patch
+          grep -q 'HANNA 043 OFFLINE SPECTATOR ONLY' \
+            upstream/dscheevos/external/nds-bootstrap/retail/bootloaderi/source/arm7/dscheevos_hooks.c
+          grep -q 'g_boot.net_valid = 0' upstream/dscheevos/dscheevos/module/src/module.c
+          grep -q 'DSCHEEVOS_RCHASH' upstream/dscheevos/external/nds-bootstrap/retail/arm9/Makefile
+          grep -q 'qa044_scan();' upstream/dscheevos/dscheevos/module/src/module.c
+          grep -q 'drawQa044' upstream/dscheevos/external/nds-bootstrap/retail/cardenginei/arm9_igm/source/dscheevosMenu.c
+          grep -q '#define DSCM_VERSION 8u' upstream/dscheevos/dscheevos/module/include/dscheevos_module.h
+          grep -q '044 ABI8 status' upstream/dscheevos/dscheevos/module/src/start.s
+          grep -q '#define DSCHEEVOS_VERSION         8' upstream/dscheevos/external/nds-bootstrap/retail/common/include/dscheevos_hooks.h
+      - name: Build real ARM9 observer module - offline enforced
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=devkitpro/devkitarm@sha256:116afba8df8453961de2936ffab20dd441edf4d682856c1ec8b0e53d7ed0bbf5
+          docker pull "$image"
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --tmpfs /tmp:rw,exec,mode=1777 \
+            --mount "type=bind,source=$PWD/upstream/dscheevos,target=/src" \
+            -w /src "$image" bash -c '
+              export DEVKITARM=/opt/devkitpro/devkitARM
+              make -C dscheevos/module HOTCHECK=0
+            ' 2>&1 | tee out/044/module-build.txt
+          make -C upstream/dscheevos/dscheevos/core test \
+            2>&1 | tee out/044/core-tests.txt
+      - name: Build GPL nds-bootstrap retail, including real rcheevos ROM hash on ARM9
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcc -O2 -static upstream/dscheevos/external/nds-bootstrap/lzss.c \
+            -o out/044/lzss
+          image=devkitpro/devkitarm:20241104
+          docker pull "$image"
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --env HOME=/tmp --tmpfs /tmp:rw,exec,mode=1777 \
+            --mount "type=bind,source=$PWD/upstream/dscheevos,target=/src" \
+            --mount "type=bind,source=$PWD/out/044/lzss,target=/usr/local/bin/lzss,readonly" \
+            -w /src/external/nds-bootstrap "$image" bash -c '
+              export DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM
+              export PATH="$DEVKITARM/bin:$DEVKITPRO/tools/bin:$PATH"
+              make -C retail nightly
+            ' 2>&1 | tee out/044/bootstrap-build.txt
+          # ds_rules echoes source filenames (not compiler flags): prove real C sources were compiled
+          grep -q 'hash_rc_hash.c' out/044/bootstrap-build.txt
+          grep -q 'hash_rc_hash_rom.c' out/044/bootstrap-build.txt
+      - name: Check binaries and stage sample offline package without user ROM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/044/BINARIES
+          cp upstream/dscheevos/dscheevos/module/build/dscheevos9.bin \
+             out/044/BINARIES/dscheevos9.bin
+          cp upstream/dscheevos/external/nds-bootstrap/retail/bin/nds-bootstrap-nightly.nds \
+             out/044/BINARIES/Bootstrap_044.nds
+          python3 scripts/validate-retail-nds-042.py \
+             out/044/BINARIES/Bootstrap_044.nds out/044/nds-header.json
+          python3 - <<'PY'
+          import json,hashlib,pathlib,struct
+          d=pathlib.Path("out/044")
+          b=(d/"BINARIES/Bootstrap_044.nds").read_bytes()
+          m=(d/"BINARIES/dscheevos9.bin").read_bytes()
+          assert b[12:16]==b"KBSE"
+          assert m[:4]==b"DSCV" and struct.unpack_from("<I",m,4)[0]==8
+          assert len(m)<=0x80000
+          report=json.loads((d/"patch-report.json").read_text())
+          assert report["spectator_only"] and report["net_disabled"]
+          assert "sd:/DSiRABridge_044/" in json.dumps(report)
+          manifest={
+            "format":"DSIRB044_OFFLINE_SPECTATOR_ONLY",
+            "offline_gates_passed":True,
+            "source_dscheevos":"59e9978be7b9c3788357ef0a609caf9dc8ea74f3",
+            "source_bootstrap":"af351f096dd71a37e0e5b18d9709bcc0fb70342f",
+            "source_rcheevos":"754965ef28db22b0411bfccbde39154cd09e6b79",
+            "bootstrap_sha256":hashlib.sha256(b).hexdigest(),
+            "module_sha256":hashlib.sha256(m).hexdigest(),
+            "module_bytes":len(m),"bootstrap_bytes":len(b),
+            "hardware_executed":False,"official_awards":False,
+            "launcher_requires_spare_sd":True,
+            "preflight_game":"ASMP",
+            "ram_probe":"64x16B per 120 frames, idle-only, no ROM/save writes",
+            "module_abi":8,
+            "notes":"GPL patched binaries: separate SD clone only, no official RA login/awards"
+          }
+          (d/"build-manifest-044.json").write_text(json.dumps(manifest,indent=2)+"\n")
+          print(json.dumps(manifest,indent=2))
+          PY
+          python3 - <<'PY'
+          import runpy,json,pathlib,importlib.util
+          t=runpy.run_path("tests/test-offline-game-044.py",run_name="not_main")
+          rom=pathlib.Path("bin-tests-044/synthetic_mario.nds")
+          p=importlib.util.spec_from_file_location("pf","scripts/retail-preflight-042.py")
+          m=importlib.util.module_from_spec(p);p.loader.exec_module(m)
+          pf=pathlib.Path("bin-tests-044/report.json")
+          pf.write_text(json.dumps(m.analyze(rom,True)))
+          p=importlib.util.spec_from_file_location("p044","scripts/prepare-offline-game-044.py")
+          m=importlib.util.module_from_spec(p);p.loader.exec_module(m)
+          dst=pathlib.Path("bin-tests-044/stage")
+          result=m.prepare(rom,pf,pathlib.Path("out/044/BINARIES/Bootstrap_044.nds"),
+                           pathlib.Path("out/044/BINARIES/dscheevos9.bin"),
+                           pathlib.Path("out/044/build-manifest-044.json"),dst)
+          assert result["status"]=="STAGED_OFFLINE_044_FOR_SPARE_SD_ONLY"
+          print("Staging synthetic ROM test PASS; NOT shipped")
+          PY
+          cp scripts/prepare-offline-game-044.py out/044/
+          cp scripts/patch-retail-memory-probe-044.py out/044/
+          cp scripts/patch-offline-retail-043.py out/044/
+          cp docs/testing-game-observer-044.md out/044/
+          cat > out/044/CORRESPONDING_SOURCE.txt <<'TXT'
+          GPL-3.0 derivative of DScheevos and nds-bootstrap.
+          Sources and revisions:
+          https://github.com/skierrz/dscheevos/tree/59e9978be7b9c3788357ef0a609caf9dc8ea74f3
+          https://github.com/skierrz/nds-bootstrap/tree/af351f096dd71a37e0e5b18d9709bcc0fb70342f
+          https://github.com/skierrz/rcheevos/tree/754965ef28db22b0411bfccbde39154cd09e6b79
+          The exact modifications are in PATCHES/*.patch; 043 and 044 patchers and workflow included.
+          TXT
+          echo "### 044 LIVE RAM compile PASS - PHYSICAL NOT_RUN" >> "$GITHUB_STEP_SUMMARY"
+          echo "- ARM9 adds bounded main-RAM QA probe, ABI8 and menu page; local spectator, real pinned rcheevos hash" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Compiler build and synthetic host staging only; no commercial ROM, no DSi firmware" >> "$GITHUB_STEP_SUMMARY"
+          echo "- NEVER MERGE into production SD. Use spare SD clone only; 043 stable preserved." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: success()
+        with:
+          name: DSi_RA_Bridge_044_Mario_EU_LiveRAM_Physical_NOT_RUN
+          path: out/044/
+          retention-days: 14
+          if-no-files-found: error

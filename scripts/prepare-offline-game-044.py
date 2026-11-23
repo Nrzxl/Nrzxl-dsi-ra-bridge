@@ -229,7 +229,7 @@ def prepare(rom,preflight,boot,module,manifest,destination):
                      "First test does not establish official RA hardware support"]}
     (destination/"STAGING_MANIFEST.json").write_text(json.dumps(report,indent=2)+"\n",encoding="utf-8")
     (destination/"LEIA_ANTES_DO_DSI.txt").write_text(
-      "DSi RA Bridge 0.4.3 - ROTEIRO EXPERIMENTAL, SOMENTE CARTAO SD RESERVA\n"
+      "DSi RA Bridge 0.4.4 - ROTEIRO EXPERIMENTAL, SOMENTE CARTAO SD RESERVA\n"
       "SEM LOGIN, SEM REDE, SEM CONQUISTAS OFICIAIS.\n\n"
       "1. NUNCA copie para o cartao SD original em uso. Preserve uma copia de seguranca.\n"
       "2. Em outro cartao SD, clone localmente seu SD do Lenny/Flipnote/HBMenu.\n"

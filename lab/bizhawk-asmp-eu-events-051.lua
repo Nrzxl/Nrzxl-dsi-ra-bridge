@@ -219,7 +219,11 @@ while true do
   local coherent=health_supported(s)
   local hp_range=(s.hp==7 or s.hp==8)
   if s.level==0 or not hp_range then
-    if armed then guard(frame,string.format("LOADING_OR_UNVALIDATED_HP hp=%d alt=%d",s.hp,s.alt)) end
+    -- Log newly encountered invalid load states even when already disarmed.
+    -- Do not print on every frame of a persistent loading screen.
+    if armed or (previous and (previous.hp~=s.hp or previous.alt~=s.alt)) then
+      guard(frame,string.format("LOADING_OR_UNVALIDATED_HP hp=%d alt=%d",s.hp,s.alt))
+    end
     disarm()
   elseif not coherent then
     if mismatch_since==nil then mismatch_since=frame end

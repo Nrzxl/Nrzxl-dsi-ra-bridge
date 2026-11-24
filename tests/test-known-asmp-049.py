@@ -91,8 +91,11 @@ class Tests(unittest.TestCase):
         code=(ROOT/"lab"/"bizhawk-asmp-eu-live-watch-049.lua").read_text()
         for bad in ("memory.write_","joypad.set","savestate.save","socket.","http."):
             self.assertNotIn(bad,code)
-        self.assertIn("memory.read_u8",code)
-        self.assertIn("memory.read_u16_le",code)
+        self.assertIn("memory.read_bytes_as_binary_string",code)
+        self.assertNotIn('type(memory.read_u8)',code)
+        self.assertNotIn('type(memory.read_u16_le)',code)
+        self.assertIn("string.byte(bytes, 1)",code)
+        self.assertIn("string.byte(bytes, 2)",code)
         self.assertIn("emu.frameadvance()",code)
         self.assertIn("0x09F358",code)
 

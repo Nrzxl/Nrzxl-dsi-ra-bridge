@@ -84,13 +84,13 @@ jobs:
           s.loader.exec_module(b)
           root=Path('out/047')
           frames=list(b.frames())
-          good=b.dump_stream(frames)
+          good=b.b.dump_stream(frames)
           crc=bytearray(good)
           crc[2+72] ^= 1
           (root/'BAD_crc.bin').write_bytes(crc)
-          (root/'BAD_frame_gap.bin').write_bytes(b.dump_stream([frames[0],frames[2]]))
-          only_dtcm=b.Frame(frames[0].session, frames[0].game_hash,0,0,(frames[0].regions[1],))
-          (root/'BAD_memory_missing.bin').write_bytes(b.dump_stream([only_dtcm]))
+          (root/'BAD_frame_gap.bin').write_bytes(b.b.dump_stream([frames[0],frames[2]]))
+          only_dtcm=b.b.Frame(frames[0].session, frames[0].game_hash,0,0,(frames[0].regions[1],))
+          (root/'BAD_memory_missing.bin').write_bytes(b.b.dump_stream([only_dtcm]))
           PY
           for bad in out/047/BAD_*.bin; do
             if ./out/047/ra-frame-replay-047 out/047/synthetic-conditions.tsv "$bad" >/dev/null 2>&1; then

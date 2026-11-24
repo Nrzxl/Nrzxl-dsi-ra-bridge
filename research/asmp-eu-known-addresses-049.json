@@ -1,0 +1,133 @@
+{
+  "format": "DSIRB049_ASMP_EU_KNOWN_ADDRESSES_V1",
+  "game": "Super Mario 64 DS",
+  "game_id": 9983,
+  "region": "Europe PAL UK",
+  "game_code": "ASMP",
+  "ram_domain": "Main RAM",
+  "ram_base_hex": "0x02000000",
+  "ram_size_bytes": 4194304,
+  "rom_ra_hash_expected": "ba3c4052e00c5cc31df5d5534c39de1b",
+  "hash_scope": "Only local owned ROM can be hashed; no active emulator ROM hash attestation",
+  "safety": {
+    "read_only": true,
+    "ra_awards_disabled": true,
+    "dsi_physical_tested": false,
+    "official_conditions_available": false
+  },
+  "sources": {
+    "james": "https://sites.google.com/site/jamesskingdom/Home/video-game-secrets-by-james-s/super-mario-64-ds-exposed",
+    "hack64": "https://hack64.net/wiki/doku.php?id=super_mario_64_ds:skelux_documentation_eu",
+    "gamehacking": "https://gamehacking.org/game/22856",
+    "decomp": "https://github.com/tangosdev/sm64ds-decomp"
+  },
+  "entries": [
+    {
+      "id": "yellow_coins",
+      "label": "Moedas amarelas",
+      "address_hex": "0x0209F358",
+      "offset_hex": "0x09F358",
+      "width_bytes": 1,
+      "width_provisional": false,
+      "evidence": "EMULATOR_PC_COUNTER_CORRELATED",
+      "sources": [
+        "james",
+        "gamehacking"
+      ],
+      "notes": "0->1, 3->4, 4->5 matched PC HUD; DSi not tested"
+    },
+    {
+      "id": "red_coins",
+      "label": "Moedas vermelhas",
+      "address_hex": "0x0209F30C",
+      "offset_hex": "0x09F30C",
+      "width_bytes": 1,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "james"
+      ],
+      "notes": "published 8-bit?"
+    },
+    {
+      "id": "silver_stars",
+      "label": "Estrelas prateadas",
+      "address_hex": "0x0209F310",
+      "offset_hex": "0x09F310",
+      "width_bytes": 1,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "james"
+      ],
+      "notes": "published 8-bit?"
+    },
+    {
+      "id": "lives",
+      "label": "Vidas",
+      "address_hex": "0x0209F2F4",
+      "offset_hex": "0x09F2F4",
+      "width_bytes": 1,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "james",
+        "hack64"
+      ],
+      "notes": "published 8-bit?"
+    },
+    {
+      "id": "level_id",
+      "label": "ID da fase",
+      "address_hex": "0x0209F2F8",
+      "offset_hex": "0x09F2F8",
+      "width_bytes": 1,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "hack64"
+      ],
+      "notes": "byte size not verified"
+    },
+    {
+      "id": "health_primary",
+      "label": "Saude candidata A",
+      "address_hex": "0x0211117C",
+      "offset_hex": "0x11117C",
+      "width_bytes": 2,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "james",
+        "hack64"
+      ],
+      "notes": "published 16-bit?"
+    },
+    {
+      "id": "health_alternate",
+      "label": "Saude candidata B",
+      "address_hex": "0x02092144",
+      "offset_hex": "0x092144",
+      "width_bytes": 2,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "hack64"
+      ],
+      "notes": "may have different representation"
+    },
+    {
+      "id": "player_select",
+      "label": "Personagem",
+      "address_hex": "0x0209CAE1",
+      "offset_hex": "0x09CAE1",
+      "width_bytes": 1,
+      "width_provisional": true,
+      "evidence": "PUBLISHED_EU_UNTESTED",
+      "sources": [
+        "james"
+      ],
+      "notes": "published 00 Mario, 01 Luigi, 02 Wario, 03 Yoshi"
+    }
+  ]
+}

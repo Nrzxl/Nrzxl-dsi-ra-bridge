@@ -1,0 +1,78 @@
+name: DSi 049 ASMP EU known watch - PC only QA
+on:
+  push:
+    branches: [qa/dsi-asmp-eu-known-watch-049-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-049:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: 049 and 048-044 Python QA, synthetic only
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/inspect-asmp-known-049.py
+          python3 tests/test-known-asmp-049.py
+          python3 tests/test-asmp-ram-048.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Validate actual live-watch Lua against mock
+        run: |
+          set -euo pipefail
+          if ! command -v lua5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq lua5.4
+          fi
+          luac5.4 -p lab/bizhawk-asmp-eu-live-watch-049.lua tests/mock-known-asmp-049.lua
+          for mode in binary proxy array_one array_zero binary_fails_then_array u8 readbyte none wrong_header; do
+            echo "Testing BizHawk read-only Lua adapter: $mode"
+            lua5.4 tests/mock-known-asmp-049.lua lab/bizhawk-asmp-eu-live-watch-049.lua "$mode"
+          done
+      - name: Package PC-only QA, no dumps or ROMs
+        run: |
+          set -euo pipefail
+          mkdir -p out/049/lab out/049/scripts out/049/research out/049/docs
+          cp lab/bizhawk-asmp-eu-live-watch-049.lua out/049/lab/
+          cp research/asmp-eu-known-addresses-049.json out/049/research/
+          cp scripts/inspect-asmp-known-049.py scripts/analyze-asmp-ram-048.py scripts/prepare-offline-game-044.py scripts/Invoke-MarioKnown-049.ps1 out/049/scripts/
+          cp docs/asmp-eu-known-watch-049.md out/049/docs/
+          echo "049 PC LAB ONLY - NOT DSi; NO RA AWARDS" > out/049/LEIA_PRIMEIRO.txt
+          if find out/049 -type f \( -name '*.bin' -o -name '*.nds' -o -name '*.sav' -o -name '*.dsv' \) | grep -q .; then exit 1; fi
+          echo "049 PC-only known-address watch, mock QA. No official awards." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_049_ASMP_EU_ReadOnly_PC_Lab_NO_DSi
+          path: out/049/
+          retention-days: 14
+          if-no-files-found: error
+  windows-ps51-049:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Synthetic Windows PowerShell 5.1 049 test
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "PS5.1 required" }
+          py -3 tests/test-known-asmp-049.py
+          if ($LASTEXITCODE -ne 0) { throw "049 unit QA failed" }
+          $folder = Join-Path $env:RUNNER_TEMP "dsirb049"
+          py -3 scripts/synthetic-asmp-captures-048.py --out $folder
+          if ($LASTEXITCODE -ne 0) { throw "048 fixture failed" }
+          $base = Join-Path $folder "DSi048_SYNTHETIC_GAME_UNVERIFIED"
+          $output = Join-Path $env:RUNNER_TEMP "049-sanitized.json"
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Invoke-MarioKnown-049.ps1" -Event coin_up -BasePrefix $base -AllowUnverifiedHeader -OutputPath $output
+          if ($LASTEXITCODE -ne 0) { throw "049 wizard failed" }
+          $r = Get-Content -LiteralPath $output -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($r.official_awards_sent -ne $false -or $r.dsi_physical_tested -ne $false -or $r.raw_dump_bytes_in_report -ne 0) { throw "Safety gate" }
+          Write-Host "DSIRB049_WINDOWS_PS51_SYNTHETIC_PASS"

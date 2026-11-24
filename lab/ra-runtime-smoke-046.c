@@ -76,8 +76,9 @@ int main(int argc, char** argv) {
     fail("cannot activate fabricated triggers on pinned rcheevos");
 
   while (fgets(line, sizeof(line), file)) {
-    char extra;
-    if (sscanf(line, "%u,%u,%u%c", &frame, &stars, &coins, &extra) != 3)
+    int consumed = 0;
+    if (sscanf(line, "%u,%u,%u%n", &frame, &stars, &coins, &consumed) != 3 ||
+        !consumed || (line[consumed] != '\r' && line[consumed] != '\n' && line[consumed] != '\0'))
       fail("bad synthetic CSV row");
     if (frame != next_expected++ || stars > 1 || coins > 3)
       fail("bad synthetic frame sequence or value");

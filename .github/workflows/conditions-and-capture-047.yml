@@ -36,7 +36,8 @@ jobs:
           mkdir -p out/047
           python3 scripts/prepare-local-conditions-047.py --synthetic --out out/047/synthetic-conditions.tsv
           python3 scripts/frame-bridge-046.py demo --out out/047/frames
-          python3 scripts/frame-bridge-046.py verify --input out/047/frames/synthetic-frames-046.bin
+          python3 scripts/watched-frame-fixture-047.py --out out/047/frames/synthetic-watched-frames-047.bin
+          python3 scripts/frame-bridge-046.py verify --input out/047/frames/synthetic-watched-frames-047.bin
       - name: Compile and run real pinned rcheevos against binary snapshots
         shell: bash
         run: |
@@ -47,7 +48,7 @@ jobs:
             -lm -lz -o out/047/ra-frame-replay-047
           ./out/047/ra-frame-replay-047 \
              out/047/synthetic-conditions.tsv \
-             out/047/frames/synthetic-frames-046.bin --expect-synthetic \
+             out/047/frames/synthetic-watched-frames-047.bin --expect-synthetic \
              | tee out/047/rcheevos-replay-result.txt
           grep -q 'DSI047_HOST_RCHEEVOS_REPLAY_PASS frames=5 conditions=3 local_trigger_events=2' out/047/rcheevos-replay-result.txt
           grep -q 'physical_dsi=NOT_RUN official_awards=NO' out/047/rcheevos-replay-result.txt
@@ -62,7 +63,7 @@ jobs:
             | tee out/047/c-capture-result.txt
           python3 - <<'PY'
           from pathlib import Path
-          raw=Path("out/047/frames/synthetic-frames-046.bin").read_bytes()
+          raw=Path("out/047/frames/synthetic-watched-frames-047.bin").read_bytes()
           n=int.from_bytes(raw[:2],"little")
           original=raw[2:2+n]
           c_packet=Path("out/047/c-capture-packet.bin").read_bytes()
@@ -76,13 +77,13 @@ jobs:
           python3 - <<'PY'
           import importlib.util
           from pathlib import Path
-          s=importlib.util.spec_from_file_location('b','scripts/frame-bridge-046.py')
+          s=importlib.util.spec_from_file_location('b','scripts/watched-frame-fixture-047.py')
           b=importlib.util.module_from_spec(s)
           import sys
           sys.modules[s.name]=b
           s.loader.exec_module(b)
           root=Path('out/047')
-          frames=list(b.synthetic_frames())
+          frames=list(b.frames())
           good=b.dump_stream(frames)
           crc=bytearray(good)
           crc[2+72] ^= 1
@@ -105,7 +106,7 @@ jobs:
           set -euo pipefail
           mkdir -p out/047/scripts out/047/lab out/047/tests
           cp scripts/prepare-local-conditions-047.py out/047/scripts/
-          cp scripts/frame-bridge-046.py out/047/scripts/
+          cp scripts/frame-bridge-046.py scripts/watched-frame-fixture-047.py out/047/scripts/
           cp lab/ra-frame-replay-047.c lab/dr46-capture-047.* lab/test-dr46-capture-047.c out/047/lab/
           cp tests/test-local-conditions-047.py tests/test-frame-bridge-046.py out/047/tests/
           cp docs/conditions-and-capture-047.md out/047/
@@ -147,6 +148,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Manifest generator failed" }
           py -3 .\scripts\frame-bridge-046.py demo --out (Join-Path $dir "frames")
           if ($LASTEXITCODE -ne 0) { throw "Frame simulator failed" }
-          py -3 .\scripts\frame-bridge-046.py verify --input (Join-Path $dir "frames\synthetic-frames-046.bin")
+          py -3 .\scripts\watched-frame-fixture-047.py --out (Join-Path $dir "frames\synthetic-watched-frames-047.bin")
+          if ($LASTEXITCODE -ne 0) { throw "Widened watched frame generator failed" }
+          py -3 .\scripts\frame-bridge-046.py verify --input (Join-Path $dir "frames\synthetic-watched-frames-047.bin")
           if ($LASTEXITCODE -ne 0) { throw "Frame validator failed" }
           Write-Host "DSI047_WINDOWS_PS51_LOCAL_MANIFEST_AND_FRAMES_PASS"

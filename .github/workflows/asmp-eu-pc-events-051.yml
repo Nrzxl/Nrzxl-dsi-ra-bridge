@@ -1,0 +1,87 @@
+name: DSi 051 ASMP EU PC-only per-frame event validation QA
+on:
+  push:
+    branches: [qa/dsi-asmp-eu-pc-event-validator-051-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-051:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Source checks 051 and earlier 050-044 synthetic regressions
+        run: |
+          set -euo pipefail
+          python3 tests/test-asmp-events-051.py
+          python3 tests/test-asmp-events-050.py
+          python3 tests/test-known-asmp-049.py
+          python3 tests/test-asmp-ram-048.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Run the actual Lua 051 with isolated synthetic scenarios
+        run: |
+          set -euo pipefail
+          if ! command -v lua5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq lua5.4
+          fi
+          luac5.4 -p lab/bizhawk-asmp-eu-events-051.lua tests/mock-asmp-eu-events-051.lua
+          for mode in normal proxy array_one array_zero u8 readbyte no_coin unpaired skip_frame none wrong_code wrong_ram; do
+            echo "Testing DSIRB051 synthetic $mode"
+            lua5.4 tests/mock-asmp-eu-events-051.lua lab/bizhawk-asmp-eu-events-051.lua "$mode"
+          done
+          lua5.4 tests/mock-asmp-eu-events-050.lua lab/bizhawk-asmp-eu-events-050.lua binary
+          lua5.4 tests/mock-known-asmp-049.lua lab/bizhawk-asmp-eu-live-watch-049.lua binary
+      - name: Package only 051 PC lab material (no ROM or DSi files)
+        run: |
+          set -euo pipefail
+          mkdir -p out/051/lab out/051/docs out/051/research
+          cp lab/bizhawk-asmp-eu-events-051.lua out/051/lab/
+          cp docs/asmp-eu-pc-events-051.md out/051/docs/
+          cp research/asmp-eu-known-addresses-049.json out/051/research/
+          cat > out/051/LEIA_PRIMEIRO.txt <<'TXT'
+          DSi RA Bridge 0.5.1 - APENAS LABORATORIO PC / BizHawk
+          1. Abra Super Mario 64 DS (ASMP Europe) de sua propria copia legitima no BizHawk.
+          2. Tools > Lua Console: PARE 049/050 antes de abrir 051.
+          3. Open Script: lab/bizhawk-asmp-eu-events-051.lua
+          4. Veja ARMED, depois teste dano, moeda, vida e personagem.
+          5. Copie somente linhas [DSIRB051] do Console Lua para avaliacao.
+          Sem ROM, save, BIOS, compilacao DSi, login ou conquistas oficiais.
+          Manter DSi XL fisico 0.4.4 no SD reserva, sem instalar 051 no DSi.
+          TXT
+          if find out/051 -type f \( -name '*.nds' -o -name '*.bin' -o -name '*.sav' -o -name '*.dsv' -o -name '*.key' -o -name '*.rom' \) | grep -q .; then
+            echo "Forbidden game/save/secret files present" >&2
+            exit 1
+          fi
+          echo "051 PC-only synthetic QA. Real 051 BizHawk and DSi physical tests pending; no official awards." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_051_ASMP_EU_PerFrame_Validator_PC_ONLY_NO_DSi
+          path: out/051/
+          retention-days: 14
+          if-no-files-found: error
+  windows-ps51-051:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: PS5.1 source safety and 050/049 regressions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "PowerShell 5.1 expected" }
+          py -3 tests/test-asmp-events-051.py
+          if ($LASTEXITCODE -ne 0) { throw "051 source guard failed" }
+          py -3 tests/test-asmp-events-050.py
+          if ($LASTEXITCODE -ne 0) { throw "050 regression failed" }
+          py -3 tests/test-known-asmp-049.py
+          if ($LASTEXITCODE -ne 0) { throw "049 regression failed" }
+          Write-Host "DSIRB051_WINDOWS_PS51_SYNTHETIC_PASS"

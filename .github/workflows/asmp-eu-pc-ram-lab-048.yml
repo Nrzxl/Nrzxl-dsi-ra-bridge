@@ -1,0 +1,153 @@
+name: DSi 048 real ASMP EU BizHawk PC memory lab - SAFE SYNTHETIC CI
+on:
+  push:
+    branches: [qa/dsi-asmp-eu-pc-memory-048-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-048:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Python QA 048 and regressions 047/046/045/044
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/analyze-asmp-ram-048.py scripts/synthetic-asmp-captures-048.py
+          python3 tests/test-asmp-ram-048.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Synthetic 4MiB before/idle/event discovery
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/048
+          python3 scripts/synthetic-asmp-captures-048.py --out out/048/PRIVATE_SYNTHETIC_INPUT
+          base=out/048/PRIVATE_SYNTHETIC_INPUT/DSi048_SYNTHETIC_GAME_UNVERIFIED
+          python3 scripts/analyze-asmp-ram-048.py \
+            --before "$base"_before.bin \
+            --idle "$base"_idle.bin \
+            --after "$base"_after.bin \
+            --event coin_up --allow-unverified-header \
+            --out out/048/synthetic-results.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open("out/048/synthetic-results.json",encoding="utf-8"))
+          assert d["event"] == "coin_up"
+          assert d["official_ra_conditions_used"] is False
+          assert d["dsi_physical_tested"] is False
+          assert d["official_unlocks_sent"] is False
+          assert d["active_emulator_rom_hash_verified"] is False
+          assert any(x["logical_ram_offset_hex"]=="0x022220" for x in d["suggested_candidates"])
+          assert not any(x["logical_ram_offset_hex"]=="0x044440" for x in d["suggested_candidates"])
+          print("DSI048_SYNTHETIC_A_IDLE_AFTER_ANALYSIS_PASS")
+          PY
+          rm -rf out/048/PRIVATE_SYNTHETIC_INPUT
+      - name: Validate BizHawk Lua source and mock three 4MiB captures
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v lua5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq lua5.4
+          fi
+          luac5.4 -p lab/bizhawk-asmp-eu-capture-048.lua tests/mock-bizhawk-048.lua
+          mkdir -p out/048/PRIVATE_BIZHAWK_MOCK
+          export DSIRB048_OUTPUT_DIR="$PWD/out/048/PRIVATE_BIZHAWK_MOCK"
+          lua5.4 tests/mock-bizhawk-048.lua lab/bizhawk-asmp-eu-capture-048.lua \
+            | tee out/048/lua-mock-check.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          import json
+          import subprocess
+          import sys
+          private=Path("out/048/PRIVATE_BIZHAWK_MOCK")
+          before=list(private.glob("*_before.bin"))
+          assert len(before)==1, f"Expected 1 BEFORE, got {len(before)}"
+          base=str(before[0])[:-len("_before.bin")]
+          assert len(list(private.glob("*.bin")))==3
+          report=private/"local-mock-report.json"
+          subprocess.check_call([sys.executable,"scripts/analyze-asmp-ram-048.py",
+            "--before",base+"_before.bin","--idle",base+"_idle.bin",
+            "--after",base+"_after.bin","--event","coin_up",
+            "--out",str(report)])
+          d=json.loads(report.read_text(encoding="utf-8"))
+          assert d["game_header_seen_by_bizhawk"]=="ASMP"
+          assert d["rom_ra_hash_verified_by_analyzer"] is False
+          assert d["total_candidates"] >= 1
+          assert any(x["logical_ram_offset_hex"] == "0x022220" for x in d["suggested_candidates"])
+          assert not any(x["logical_ram_offset_hex"] == "0x044440" for x in d["suggested_candidates"])
+          print("DSI048_BIZHAWK_LUA_TO_PYTHON_MOCK_PARITY_PASS")
+          PY
+          rm -rf out/048/PRIVATE_BIZHAWK_MOCK
+      - name: Package PC tools without dumps or private material
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/048/lab out/048/scripts out/048/tests
+          cp lab/bizhawk-asmp-eu-capture-048.lua out/048/lab/
+          cp scripts/analyze-asmp-ram-048.py scripts/synthetic-asmp-captures-048.py scripts/prepare-offline-game-044.py scripts/Invoke-MarioRAM-048.ps1 out/048/scripts/
+          cp tests/test-asmp-ram-048.py tests/mock-bizhawk-048.lua out/048/tests/
+          cp docs/asmp-eu-pc-memory-048.md out/048/
+          cat > out/048/LEIA_PRIMEIRO.txt <<'EOF'
+          DSi RA Bridge 0.4.8 — PC LAB / BizHawk melonDS
+          1. Leia docs/asmp-eu-pc-memory-048.md.
+          2. Este artefato NAO E INSTALACAO DO DSI. Nao copiar ao SD.
+          3. Capturas reais exigem sua ROM ASMP EU privada no BizHawk.
+          4. Capture BEFORE, IDLE, AFTER com emulador pausado.
+          5. Analise localmente com --event coin_up e --rom seu arquivo.
+          6. Envie somente o relatorio JSON sanitizado. Nao envie .bin/ROM.
+          7. Enderecos EU publicados sao HIPOTESES, nao awards oficiais.
+          8. A 0.4.4 fisica permanece intacta. Sem NAND/Unlaunch/award.
+          EOF
+          if find out/048 -type f \( -name '*.bin' -o -name '*.nds' -o -name '*.sav' -o -name '*.dsv' \) | grep -q .; then
+            echo "BLOCKED: RAM dumps/ROM/saves must not enter CI artifact" >&2
+            exit 1
+          fi
+          echo "### 048 HOST-ONLY BizHawk EU RAM lab, all CI data synthetic" >> "$GITHUB_STEP_SUMMARY"
+          echo "No actual Mario capture, ROM, RA raw set, auth or official awards." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_048_BizHawk_ASMP_EU_PC_Lab_NO_DSi
+          path: out/048/
+          retention-days: 14
+          if-no-files-found: error
+
+  windows-ps51-048:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 RAM differential analyzer with synthetic data
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Requires PowerShell 5.1" }
+          py -3 .\tests\test-asmp-ram-048.py
+          if ($LASTEXITCODE -ne 0) { throw "048 tests failed" }
+          $root = Join-Path $env:RUNNER_TEMP "DSi048_WinMock"
+          py -3 .\scripts\synthetic-asmp-captures-048.py --out $root
+          if ($LASTEXITCODE -ne 0) { throw "Synthetic fixture generation failed" }
+          $base = Join-Path $root "DSi048_SYNTHETIC_GAME_UNVERIFIED"
+          $report = Join-Path $env:RUNNER_TEMP "DSi048_sanitized.json"
+          py -3 .\scripts\analyze-asmp-ram-048.py --before ($base + "_before.bin") --idle ($base + "_idle.bin") --after ($base + "_after.bin") --event coin_up --allow-unverified-header --out $report
+          if ($LASTEXITCODE -ne 0) { throw "Offline analyzer failed" }
+          $check = Get-Content -LiteralPath $report -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($check.total_candidates -lt 1 -or $check.official_unlocks_sent -ne $false -or $check.dsi_physical_tested -ne $false) {
+            throw "Invalid sanitized report"
+          }
+          $reportWizard = Join-Path $env:RUNNER_TEMP "DSi048_wizard_sanitized.json"
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Invoke-MarioRAM-048.ps1" -Event coin_up -BasePrefix $base -AllowUnverifiedHeader -OutputPath $reportWizard
+          if ($LASTEXITCODE -ne 0) { throw "PowerShell 5.1 wizard execution failed" }
+          $wizard = Get-Content -LiteralPath $reportWizard -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($wizard.total_candidates -lt 1 -or $wizard.official_unlocks_sent -ne $false) { throw "Wizard report invalid" }
+          Write-Host "DSI048_PS51_ANALYSIS_WIZARD_PASS"
+          Write-Host "DSI048_WINDOWS_PS51_RAM_ANALYZER_SYNTHETIC_PASS"

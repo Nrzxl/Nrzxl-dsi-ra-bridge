@@ -103,7 +103,7 @@ else
   if mode=="u8" or mode=="readbyte" then
     assert(two_byte_calls==0, "Byte-level fallback must read one byte at a time")
   else
-    assert(two_byte_calls==6, "Binary/array reader must decode six 16-bit reads")
+    assert(two_byte_calls==7, "Binary/array reader must decode 6 field reads plus 1 probe")
   end
   local log=table.concat(outputs,"\n")
   assert(log:find("yellow_coins 0x0209F358 3 -> 4",1,true),log)

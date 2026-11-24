@@ -248,7 +248,7 @@ def main():
                 coins = next(r.data[1] for r in f.regions if r.bank == MAIN and r.offset == 0x100)
                 rows.append((f.frame, stars, coins))
             with (args.out / "synthetic-trace-046.csv").open("w", newline="", encoding="ascii") as fp:
-                writer = csv.writer(fp)
+                writer = csv.writer(fp, lineterminator="\n")
                 writer.writerow(("frame", "stars_synthetic", "coins_synthetic"))
                 writer.writerows(rows)
             report = {

@@ -36,6 +36,26 @@ $base = "$env:USERPROFILE\Downloads\DSi048_ASMP_AAAAMMDD_HHMMSS_12345"
 py -3 .\scripts\analyze-asmp-ram-048.py --before ($base + "_before.bin") --idle ($base + "_idle.bin") --after ($base + "_after.bin") --event coin_up --rom "E:\CAMINHO_PRIVADO\Super Mario 64 DS Europe.nds" --out "$env:USERPROFILE\Downloads\DSi048_coin_candidates.json"
 ```
 
+### Forma mais fácil no Windows — assistente PowerShell 5.1
+
+Depois de obter as três capturas, em vez de digitar os três nomes de arquivo, abra um PowerShell **na pasta raiz extraída que contém scripts** e execute:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-MarioRAM-048.ps1 -Event coin_up -RomPath "E:\CAMINHO_PRIVADO\Super Mario 64 DS Europe.nds"
+```
+
+
+O assistente procura automaticamente em Downloads o conjunto **BEFORE** mais recente, confere se existem **IDLE** e **AFTER** da mesma sessão, compara as capturas e grava um novo JSON sanitizado com o caminho exibido no console. **Não copia nem envia a ROM**.
+
+Se seu terminal estiver **dentro da pasta scripts**, execute sem repetir o diretório:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Invoke-MarioRAM-048.ps1 -Event coin_up -RomPath "E:\CAMINHO_PRIVADO\Super Mario 64 DS Europe.nds"
+```
+
+
+Caso o emulador não consiga exibir cabeçalho e você não tenha a ROM homologada localmente, a opção **-AllowUnverifiedHeader** permite gerar relatório explicitamente **não verificado**. É preferível usar **-RomPath** para confirmar o hash do arquivo ASMP Europa.
+
 O argumento **--rom** confirma **localmente** o hash RA Nintendo DS usando a função já aprovada na 0.4.4 (hash esperado: ba3c4052e00c5cc31df5d5534c39de1b). Ele não envia a ROM à rede. Verifica o *arquivo fornecido*, não prova que o emulador estava rodando aquele mesmo arquivo. Se o script não conseguir ler o cabeçalho do cartucho no domínio ROM e você não apontar um arquivo para --rom, o analisador bloqueia por padrão. Para uma investigação marcada explicitamente como **não verificada**, use **--allow-unverified-header**.
 
 O resultado será **somente** um JSON sanitizado com offsets, larguras de 1/2/4 bytes, antes/depois, ranking e flags de incerteza. **Envie apenas o DSi048_coin_candidates.json, nunca os .bin/ROM**.

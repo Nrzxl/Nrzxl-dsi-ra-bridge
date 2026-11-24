@@ -6,6 +6,7 @@ No ROM inspection, saves, credential handling, Internet, game writes or awards.
 Only sanitized offsets and measurements are emitted. Input dumps are PRIVATE.
 """
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -14,6 +15,7 @@ from pathlib import Path
 
 SIZE = 4 * 1024 * 1024
 EVENTS = {"coin_up", "star_up", "life_down", "health_down", "level_change"}
+EXPECTED_ASMP_EU_RA_HASH = "ba3c4052e00c5cc31df5d5534c39de1b"
 EU_REFERENCE = {
     0x09F2F4: ("lives", "Hack64 Skelux Super Mario 64 DS Europe"),
     0x11117C: ("health_candidate_a", "Hack64 Skelux Super Mario 64 DS Europe"),
@@ -116,7 +118,25 @@ def analyze(before, idle, after, event, limit=80):
     }
 
 
-def summary(paths, event, limit, allow_unverified):
+def validate_local_rom(rom):
+    if rom is None:
+        return False
+    previous = Path(__file__).resolve().parent / "prepare-offline-game-044.py"
+    if not previous.is_file():
+        raise CaptureError("044 RA DS hash implementation not found locally")
+    spec = importlib.util.spec_from_file_location("dsirb_044_hash", previous)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        value = module.ra_hash_ds(rom)
+    except (ValueError, OSError) as exc:
+        raise CaptureError("Local ROM unreadable or invalid DS hash") from exc
+    if value.lower() != EXPECTED_ASMP_EU_RA_HASH:
+        raise CaptureError("Local ROM RA DS hash differs from approved ASMP Europe image")
+    return True
+
+
+def summary(paths, event, limit, allow_unverified, local_rom_verified=False):
     contents = []
     metadata = []
     for name, path in zip(("before", "idle", "after"), paths):
@@ -131,8 +151,8 @@ def summary(paths, event, limit, allow_unverified):
             metadata[2]["frame_before"]):
         raise CaptureError("Capture frames not strictly increasing")
     verified = all(x["rom_check"] == "HEADER_MATCH_ONLY" for x in metadata)
-    if not verified and not allow_unverified:
-        raise CaptureError("ROM game code unverified by emulator; add --allow-unverified-header ONLY after local ASMP hash check")
+    if not verified and not (allow_unverified or local_rom_verified):
+        raise CaptureError("ROM game code unverified by emulator; supply --rom approved ASMP EU path or explicitly --allow-unverified-header")
     if any(x["game_code"] != metadata[0]["game_code"] for x in metadata):
         raise CaptureError("ROM identity changed between snapshots")
     outcome = analyze(*contents, event=event, limit=limit)
@@ -143,7 +163,9 @@ def summary(paths, event, limit, allow_unverified):
         "expected_game_code": "ASMP",
         "game_header_seen_by_bizhawk": metadata[0]["game_code"],
         "cartridge_header_verification": "ASMP_HEADER_MATCH_ONLY" if verified else "USER_OVERRIDDEN_UNVERIFIED",
-        "rom_ra_hash_verified_by_analyzer": False,
+        "local_user_supplied_rom_ra_hash_matches": local_rom_verified,
+        "active_emulator_rom_hash_verified": False,
+        "rom_ra_hash_verified_by_analyzer": local_rom_verified,
         "sampled_ram_bytes": SIZE,
         "first_frame": metadata[0]["frame_before"],
         "control_frame": metadata[1]["frame_before"],
@@ -163,6 +185,7 @@ def main():
     ap.add_argument("--event", required=True, choices=sorted(EVENTS))
     ap.add_argument("--out", required=True, type=Path)
     ap.add_argument("--allow-unverified-header", action="store_true")
+    ap.add_argument("--rom", type=Path, help="Optional owned local ASMP EU ROM file for DS hash verification; NEVER uploaded")
     ap.add_argument("--max-results", type=int, default=80)
     args = ap.parse_args()
     try:
@@ -170,10 +193,12 @@ def main():
             raise CaptureError("--max-results must be 1..200")
         if args.out.exists():
             raise CaptureError("Refusing to overwrite existing report")
+        local_rom_verified = validate_local_rom(args.rom)
         report = summary(
             (args.before, args.idle, args.after),
             event=args.event, limit=args.max_results,
-            allow_unverified=args.allow_unverified_header
+            allow_unverified=args.allow_unverified_header,
+            local_rom_verified=local_rom_verified
         )
         if not args.out.parent.is_dir():
             raise CaptureError("Output directory does not exist")
@@ -183,7 +208,7 @@ def main():
         print(json.dumps({
             "status": report["status"], "event": report["event"],
             "total_candidates": report["total_candidates"],
-            "rom_ra_hash_verified_by_analyzer": False,
+            "rom_ra_hash_verified_by_analyzer": report["rom_ra_hash_verified_by_analyzer"],
             "official_unlocks_sent": False,
             "report": str(args.out)
         }))

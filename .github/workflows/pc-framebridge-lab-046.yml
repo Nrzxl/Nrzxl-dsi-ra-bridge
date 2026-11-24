@@ -1,0 +1,107 @@
+name: DSi 046 PC frame bridge and native rcheevos laboratory - NO DSi
+on:
+  push:
+    branches: [qa/dsi-pc-framebridge-046-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-host-native-046:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/rcheevos
+          ref: 754965ef28db22b0411bfccbde39154cd09e6b79
+          path: upstream/rcheevos
+          persist-credentials: false
+      - name: Verify pinned rcheevos and Python bridge tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C upstream/rcheevos rev-parse HEAD)" = 754965ef28db22b0411bfccbde39154cd09e6b79
+          python3 -m py_compile scripts/frame-bridge-046.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Generate and validate synthetic frame stream
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/frame-bridge-046.py demo --out out/046
+          python3 scripts/frame-bridge-046.py verify --input out/046/synthetic-frames-046.bin
+          python3 - <<'PY'
+          import json
+          r = json.load(open("out/046/synthetic-report-046.json"))
+          assert r["accepted_frames"] == 5
+          for key in ("capture_on_dsi", "official_unlocks_sent", "official_achievement_definitions_used"):
+              assert r[key] is False, key
+          print("DSI046_STRICT_FRAME_WIRE_SYNTHETIC_PASS")
+          PY
+      - name: Compile actual pinned rcheevos C and evaluate local synthetic triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c99 -O2 -Iupstream/rcheevos/include \
+            lab/ra-runtime-smoke-046.c \
+            upstream/rcheevos/src/runtime/*.c upstream/rcheevos/src/util/*.c \
+            -lm -o out/046/ra-runtime-smoke-046
+          ./out/046/ra-runtime-smoke-046 out/046/synthetic-trace-046.csv \
+            | tee out/046/rc-runtime-results.txt
+          grep -q "RCHEEVOS_046_SYNTHETIC_RUNTIME_PASS" out/046/rc-runtime-results.txt
+          grep -q "star_triggers=1 coin_triggers=1" out/046/rc-runtime-results.txt
+          grep -q "hardware=NOT_RUN official_awards=NO" out/046/rc-runtime-results.txt
+      - name: Document strictly synthetic scope and package artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp docs/pc-framebridge-lab-046.md out/046/
+          mkdir -p out/046/scripts out/046/lab out/046/tests
+          cp scripts/frame-bridge-046.py out/046/scripts/
+          cp lab/ra-runtime-smoke-046.c out/046/lab/
+          cp tests/test-frame-bridge-046.py out/046/tests/
+          cat > out/046/PHYSICAL_NOT_RUN.txt <<'EOF'
+          DSi Bridge 0.4.6 PC synthetic-only laboratory.
+          This IS NOT a Nintendo DSi/DSi XL update. No .nds, ROM, save, NAND,
+          secrets, authenticated game patch, RA account or official award.
+          0.4.4 remains the physical read-only RAM baseline.
+          EOF
+          echo "## DSi RA Bridge 046 - host prototype only" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pinned rcheevos native synthetic triggers + per-frame strict CRC and sequence tests. Hardware NOT_RUN; 157 official conditions NOT_EVALUATED; no awards." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_046_PC_FrameBridge_SyntheticOnly_NO_DSi
+          path: out/046/
+          retention-days: 14
+          if-no-files-found: error
+
+  windows-ps51-046:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 and Python strict frame simulator
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Requires Windows PowerShell 5.1" }
+          py -3 --version
+          if ($LASTEXITCODE -ne 0) { throw "Python launcher not found" }
+          py -3 .\tests\test-frame-bridge-046.py
+          if ($LASTEXITCODE -ne 0) { throw "Unit tests failed" }
+          $out = Join-Path $env:RUNNER_TEMP "DSi046_PC_FrameBridge_Synthetic"
+          py -3 .\scripts\frame-bridge-046.py demo --out $out
+          if ($LASTEXITCODE -ne 0) { throw "Demo failed" }
+          py -3 .\scripts\frame-bridge-046.py verify --input (Join-Path $out "synthetic-frames-046.bin")
+          if ($LASTEXITCODE -ne 0) { throw "Stream verification failed" }
+          $r = Get-Content -LiteralPath (Join-Path $out "synthetic-report-046.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($r.accepted_frames -ne 5 -or $r.capture_on_dsi -ne $false -or $r.official_unlocks_sent -ne $false) {
+            throw "Invalid output safety flags"
+          }
+          Write-Host "DSI046_WINDOWS_PS51_SYNTHETIC_PASS"

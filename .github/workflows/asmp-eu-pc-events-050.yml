@@ -1,0 +1,74 @@
+name: DSi 050 ASMP EU PC-only event detector QA
+on:
+  push:
+    branches: [qa/dsi-asmp-eu-pc-event-detector-050-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-050:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Python source security gates and regressions 050-044
+        run: |
+          set -euo pipefail
+          python3 tests/test-asmp-events-050.py
+          python3 tests/test-known-asmp-049.py
+          python3 tests/test-asmp-ram-048.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Test ACTUAL Lua event detector with synthetic scenarios only
+        run: |
+          set -euo pipefail
+          if ! command -v lua5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq lua5.4
+          fi
+          luac5.4 -p lab/bizhawk-asmp-eu-events-050.lua tests/mock-asmp-eu-events-050.lua
+          for mode in binary proxy array_zero readbyte no_coin lagged none wrong_code; do
+            echo "Testing 050 read-only event detector mode: $mode"
+            lua5.4 tests/mock-asmp-eu-events-050.lua lab/bizhawk-asmp-eu-events-050.lua "$mode"
+          done
+      - name: Package only PC LAB 050, no dumps or games
+        run: |
+          set -euo pipefail
+          mkdir -p out/050/lab out/050/docs out/050/research
+          cp lab/bizhawk-asmp-eu-events-050.lua out/050/lab/
+          cp docs/asmp-eu-pc-events-050.md out/050/docs/
+          cp research/asmp-eu-known-addresses-049.json out/050/research/
+          echo "050 PC LAB ONLY: Tools > Lua Console > Open Script > lab/bizhawk-asmp-eu-events-050.lua" > out/050/LEIA_PRIMEIRO.txt
+          echo "Read docs first. No official RA awards, no DSi executable; keep ROMs and dumps private." >> out/050/LEIA_PRIMEIRO.txt
+          if find out/050 -type f \( -name '*.nds' -o -name '*.bin' -o -name '*.sav' -o -name '*.dsv' \) | grep -q .; then
+            echo "BLOCKED: forbidden private or DSi files" >&2
+            exit 1
+          fi
+          echo "050 PC-only read-only event detector validated by synthetic mocks. No user ROM or real DSi tested." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_050_ASMP_EU_PC_Event_Detector_NO_DSi
+          path: out/050/
+          retention-days: 14
+          if-no-files-found: error
+  windows-ps51-050:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Windows PS 5.1 and Python 050/049 regression, synthetic only
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Expected PowerShell 5.1" }
+          py -3 tests/test-asmp-events-050.py
+          if ($LASTEXITCODE -ne 0) { throw "050 source guards failed" }
+          py -3 tests/test-known-asmp-049.py
+          if ($LASTEXITCODE -ne 0) { throw "049 regressions failed" }
+          Write-Host "DSIRB050_WINDOWS_PS51_SYNTHETIC_PASS"

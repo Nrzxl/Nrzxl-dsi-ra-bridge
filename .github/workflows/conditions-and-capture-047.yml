@@ -1,0 +1,152 @@
+name: DSi 047 private conditions and per-frame C capture laboratory - NO DSi
+on:
+  push:
+    branches: [qa/dsi-real-conditions-host-047-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-native-047:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: skierrz/rcheevos
+          ref: 754965ef28db22b0411bfccbde39154cd09e6b79
+          path: upstream/rcheevos
+          persist-credentials: false
+      - name: Verify pinned runtime and run 047/046/045/044 Python QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C upstream/rcheevos rev-parse HEAD)" = 754965ef28db22b0411bfccbde39154cd09e6b79
+          python3 -m py_compile scripts/prepare-local-conditions-047.py scripts/frame-bridge-046.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Generate offline synthetic conditions and verified 046 wire frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/047
+          python3 scripts/prepare-local-conditions-047.py --synthetic --out out/047/synthetic-conditions.tsv
+          python3 scripts/frame-bridge-046.py demo --out out/047/frames
+          python3 scripts/frame-bridge-046.py verify --input out/047/frames/synthetic-frames-046.bin
+      - name: Compile and run real pinned rcheevos against binary snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c99 -Wall -Wextra -O2 -Iupstream/rcheevos/include \
+            lab/ra-frame-replay-047.c \
+            upstream/rcheevos/src/runtime/*.c upstream/rcheevos/src/util/*.c \
+            -lm -lz -o out/047/ra-frame-replay-047
+          ./out/047/ra-frame-replay-047 \
+             out/047/synthetic-conditions.tsv \
+             out/047/frames/synthetic-frames-046.bin --expect-synthetic \
+             | tee out/047/rcheevos-replay-result.txt
+          grep -q 'DSI047_HOST_RCHEEVOS_REPLAY_PASS frames=5 conditions=3 local_trigger_events=2' out/047/rcheevos-replay-result.txt
+          grep -q 'physical_dsi=NOT_RUN official_awards=NO' out/047/rcheevos-replay-result.txt
+      - name: Compile portable C ARM9 candidate; compare bytes to Python protocol
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c99 -Wall -Wextra -Werror -O2 -Ilab \
+            lab/dr46-capture-047.c lab/test-dr46-capture-047.c \
+            -o out/047/test-dr46-capture-047
+          ./out/047/test-dr46-capture-047 out/047/c-capture-packet.bin \
+            | tee out/047/c-capture-result.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          raw=Path("out/047/frames/synthetic-frames-046.bin").read_bytes()
+          n=int.from_bytes(raw[:2],"little")
+          original=raw[2:2+n]
+          c_packet=Path("out/047/c-capture-packet.bin").read_bytes()
+          assert c_packet == original, "C capture != Python DR46 wire"
+          print("DSI047_ARM9_CANDIDATE_HOST_WIRE_PARITY_PASS")
+          PY
+      - name: Detect corrupted, gapped, and incomplete memory before evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import importlib.util
+          from pathlib import Path
+          s=importlib.util.spec_from_file_location('b','scripts/frame-bridge-046.py')
+          b=importlib.util.module_from_spec(s)
+          import sys
+          sys.modules[s.name]=b
+          s.loader.exec_module(b)
+          root=Path('out/047')
+          frames=list(b.synthetic_frames())
+          good=b.dump_stream(frames)
+          crc=bytearray(good)
+          crc[2+72] ^= 1
+          (root/'BAD_crc.bin').write_bytes(crc)
+          (root/'BAD_frame_gap.bin').write_bytes(b.dump_stream([frames[0],frames[2]]))
+          only_dtcm=b.Frame(frames[0].session, frames[0].game_hash,0,0,(frames[0].regions[1],))
+          (root/'BAD_memory_missing.bin').write_bytes(b.dump_stream([only_dtcm]))
+          PY
+          for bad in out/047/BAD_*.bin; do
+            if ./out/047/ra-frame-replay-047 out/047/synthetic-conditions.tsv "$bad" >/dev/null 2>&1; then
+              echo "FAIL: invalid frame accepted: $bad" >&2
+              exit 1
+            fi
+          done
+          echo 'DSI047_REPLAY_FAIL_CLOSED_CORRUPTION_GAP_WATCHLIST_PASS'
+          rm -f out/047/BAD_*.bin
+      - name: Package SAFE synthetic-only PC artifact; no official triggers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/047/scripts out/047/lab out/047/tests
+          cp scripts/prepare-local-conditions-047.py out/047/scripts/
+          cp scripts/frame-bridge-046.py out/047/scripts/
+          cp lab/ra-frame-replay-047.c lab/dr46-capture-047.* lab/test-dr46-capture-047.c out/047/lab/
+          cp tests/test-local-conditions-047.py tests/test-frame-bridge-046.py out/047/tests/
+          cp docs/conditions-and-capture-047.md out/047/
+          cat > out/047/LEIA_PRIMEIRO.txt <<'EOF'
+          DSi Bridge 0.4.7: PC LAB ONLY. Synthetic fixture data, synthetic trigger
+          definitions and real rcheevos engine. Not an NDS update; no ROM, save,
+          account, Web API key, authenticated patch, user private trigger or awards.
+          The C encoder was tested on a Linux runner; not yet hooked to a DSi ARM9.
+          Do not copy to a DSi SD card.
+          EOF
+          echo '### DSi Bridge 047 - host-only synthetic C replay and capture candidate' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No DSi/ROM/RA credentials/real triggers. Original official set 157 NOT evaluated; awards disabled.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_047_PC_RealConditions_Gate_Synthetic_Capture_NO_DSi
+          path: out/047/
+          retention-days: 14
+          if-no-files-found: error
+
+  windows-ps51-047:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate local-only manifest and 046 frame on PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Expected PowerShell 5.1" }
+          py -3 .\tests\test-local-conditions-047.py
+          if ($LASTEXITCODE -ne 0) { throw "Manifest tests failed" }
+          py -3 .\tests\test-frame-bridge-046.py
+          if ($LASTEXITCODE -ne 0) { throw "Transport regression failed" }
+          $dir = Join-Path $env:RUNNER_TEMP "DSi047_LocalSynthetic"
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          py -3 .\scripts\prepare-local-conditions-047.py --synthetic --out (Join-Path $dir "synthetic-conditions.tsv")
+          if ($LASTEXITCODE -ne 0) { throw "Manifest generator failed" }
+          py -3 .\scripts\frame-bridge-046.py demo --out (Join-Path $dir "frames")
+          if ($LASTEXITCODE -ne 0) { throw "Frame simulator failed" }
+          py -3 .\scripts\frame-bridge-046.py verify --input (Join-Path $dir "frames\synthetic-frames-046.bin")
+          if ($LASTEXITCODE -ne 0) { throw "Frame validator failed" }
+          Write-Host "DSI047_WINDOWS_PS51_LOCAL_MANIFEST_AND_FRAMES_PASS"

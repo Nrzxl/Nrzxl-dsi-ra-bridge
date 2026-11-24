@@ -31,7 +31,10 @@ jobs:
             sudo apt-get install -y -qq lua5.4
           fi
           luac5.4 -p lab/bizhawk-asmp-eu-live-watch-049.lua tests/mock-known-asmp-049.lua
-          lua5.4 tests/mock-known-asmp-049.lua lab/bizhawk-asmp-eu-live-watch-049.lua
+          for mode in binary proxy array_one array_zero binary_fails_then_array u8 readbyte none wrong_header; do
+            echo "Testing BizHawk read-only Lua adapter: $mode"
+            lua5.4 tests/mock-known-asmp-049.lua lab/bizhawk-asmp-eu-live-watch-049.lua "$mode"
+          done
       - name: Package PC-only QA, no dumps or ROMs
         run: |
           set -euo pipefail

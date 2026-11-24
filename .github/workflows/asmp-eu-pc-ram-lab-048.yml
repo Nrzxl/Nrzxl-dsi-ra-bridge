@@ -92,7 +92,7 @@ jobs:
           set -euo pipefail
           mkdir -p out/048/lab out/048/scripts out/048/tests
           cp lab/bizhawk-asmp-eu-capture-048.lua out/048/lab/
-          cp scripts/analyze-asmp-ram-048.py scripts/synthetic-asmp-captures-048.py scripts/prepare-offline-game-044.py out/048/scripts/
+          cp scripts/analyze-asmp-ram-048.py scripts/synthetic-asmp-captures-048.py scripts/prepare-offline-game-044.py scripts/Invoke-MarioRAM-048.ps1 out/048/scripts/
           cp tests/test-asmp-ram-048.py tests/mock-bizhawk-048.lua out/048/tests/
           cp docs/asmp-eu-pc-memory-048.md out/048/
           cat > out/048/LEIA_PRIMEIRO.txt <<'EOF'
@@ -144,4 +144,10 @@ jobs:
           if ($check.total_candidates -lt 1 -or $check.official_unlocks_sent -ne $false -or $check.dsi_physical_tested -ne $false) {
             throw "Invalid sanitized report"
           }
+          $reportWizard = Join-Path $env:RUNNER_TEMP "DSi048_wizard_sanitized.json"
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Invoke-MarioRAM-048.ps1" -Event coin_up -BasePrefix $base -AllowUnverifiedHeader -OutputPath $reportWizard
+          if ($LASTEXITCODE -ne 0) { throw "PowerShell 5.1 wizard execution failed" }
+          $wizard = Get-Content -LiteralPath $reportWizard -Raw -Encoding UTF8 | ConvertFrom-Json
+          if ($wizard.total_candidates -lt 1 -or $wizard.official_unlocks_sent -ne $false) { throw "Wizard report invalid" }
+          Write-Host "DSI048_PS51_ANALYSIS_WIZARD_PASS"
           Write-Host "DSI048_WINDOWS_PS51_RAM_ANALYZER_SYNTHETIC_PASS"

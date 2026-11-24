@@ -125,7 +125,11 @@ else
   assert(count("PHASE_TRANSITION_OBSERVED")==2,lines)
   assert(count("LIVES_DROP_STABLE_CANDIDATE")==1,lines)
   assert(count("CHARACTER_VALUE_STABLE_CANDIDATE")==2,lines)
-  assert(count("COIN_UP_OBSERVED")==(mode=="no_coin" and 0 or 3),lines)
+  -- During a fail-closed unpaired/frame-gap episode the first coin is
+  -- intentionally NOT counted, because the monitor is disarmed.
+  local expected_coins=(mode=="no_coin" and 0) or
+     ((mode=="unpaired" or mode=="skip_frame") and 2 or 3)
+  assert(count("COIN_UP_OBSERVED")==expected_coins,lines)
   assert(contains("LIVES_RAW_CHANGE_CANDIDATE 4->3"),lines)
   assert(contains("CHARACTER_RAW_CHANGE_CANDIDATE 3->1"),lines)
   assert(contains("CHARACTER_RAW_CHANGE_CANDIDATE 1->3"),lines)

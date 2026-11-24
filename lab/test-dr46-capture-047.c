@@ -15,9 +15,9 @@ static const uint8_t hash[16] = {
 static uint16_t fake_read(uint8_t bank, uint32_t off,
                           uint8_t* out, uint16_t size, void* ctx) {
   (void)ctx;
-  if (bank == 0 && off == 0x100u && size == 2u) {
-    out[0] = 0; out[1] = 0;
-    return 2;
+  if (bank == 0 && off == 0x100u && size == 16u) {
+    memset(out, 0, 16);
+    return 16;
   }
   if (bank == 1 && off == 0x20u && size == 1u) {
     out[0] = 0;
@@ -32,7 +32,7 @@ static uint16_t short_read(uint8_t bank, uint32_t off,
 }
 int main(int argc, char** argv) {
   dr46_capture_input_t in = {session, hash, 0, 0};
-  const dr46_watch_t valid[2] = {{0,0x100u,2}, {1,0x20u,1}};
+  const dr46_watch_t valid[2] = {{0,0x100u,16}, {1,0x20u,1}};
   const dr46_watch_t overlap[2] = {{0,0x100u,2}, {0,0x101u,1}};
   uint8_t packet[DR46_MAX_PACKET];
   size_t size;
@@ -50,7 +50,7 @@ int main(int argc, char** argv) {
     return 5;
   size = dr46_capture_encode(&in, valid, 2, fake_read, NULL,
                              packet, sizeof(packet));
-  if (size != 73u || memcmp(packet, "DR46", 4))
+  if (size != 87u || memcmp(packet, "DR46", 4))
     return 6;
   f = fopen(argv[1], "wb");
   if (!f)
@@ -60,6 +60,6 @@ int main(int argc, char** argv) {
     return 8;
   }
   fclose(f);
-  puts("DSI047_PORTABLE_C_ENCODER_SYNTHETIC_PASS bytes=73");
+  puts("DSI047_PORTABLE_C_ENCODER_SYNTHETIC_PASS bytes=87");
   return 0;
 }

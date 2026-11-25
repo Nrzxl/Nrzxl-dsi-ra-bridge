@@ -1,0 +1,92 @@
+name: DSi 052 ASMP EU PC-only one-pass observer QA
+on:
+  push:
+    branches: [qa/dsi-asmp-eu-one-pass-observer-052-20261125]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux-052:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Source safety and 051-044 regression
+        run: |
+          set -euo pipefail
+          python3 tests/test-asmp-observer-052.py
+          python3 tests/test-asmp-events-051.py
+          python3 tests/test-asmp-events-050.py
+          python3 tests/test-known-asmp-049.py
+          python3 tests/test-asmp-ram-048.py
+          python3 tests/test-local-conditions-047.py
+          python3 tests/test-frame-bridge-046.py
+          python3 tests/test-ra-set-coverage-045.py
+          python3 tests/test-offline-game-044.py
+      - name: Run actual Lua 052 in synthetic memory scenarios
+        run: |
+          set -euo pipefail
+          if ! command -v lua5.4 >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y lua5.4
+          fi
+          luac5.4 -p lab/bizhawk-asmp-eu-observer-052.lua tests/mock-asmp-eu-observer-052.lua
+          for mode in normal proxy array_one array_zero u8 readbyte no_star no_cap invalid_actor wrong_code wrong_ram no_api; do
+            echo "Testing 052 synthetic: $mode"
+            lua5.4 tests/mock-asmp-eu-observer-052.lua lab/bizhawk-asmp-eu-observer-052.lua "$mode"
+          done
+          lua5.4 tests/mock-asmp-eu-events-051.lua lab/bizhawk-asmp-eu-events-051.lua normal
+          lua5.4 tests/mock-asmp-eu-events-050.lua lab/bizhawk-asmp-eu-events-050.lua binary
+      - name: Package PC-only observer, no game/save/DSi
+        run: |
+          set -euo pipefail
+          mkdir -p out/052/lab out/052/docs out/052/research
+          cp lab/bizhawk-asmp-eu-observer-052.lua out/052/lab/
+          cp docs/asmp-eu-pc-one-pass-052.md out/052/docs/
+          cp research/asmp-eu-known-addresses-049.json out/052/research/
+          cat > out/052/LEIA_PRIMEIRO.txt <<'TXT'
+          DSi RA Bridge 0.5.2 ONE-PASS PC ONLY / BizHawk
+          Start your own Super Mario 64 DS ASMP Europe ROM in BizHawk 2.11.1.
+          Tools > Lua Console: stop 049, 050, 051 scripts before starting 052.
+          Open Script: lab/bizhawk-asmp-eu-observer-052.lua
+          The 052 observer attempts a plain text journal in Windows Downloads.
+          Play ONE normal run: stars, Mario cap, coins, health, lives, Game Over.
+          Send only the DSIRB052 text lines and visual gameplay observations.
+          NO official RA awards, no network, no cheats, no physical DSi build.
+          Never upload ROM, save, BIOS, private RA data or full RAM dumps.
+          Physical DSi baseline remains 0.4.4 on a separate spare SD.
+          TXT
+          if find out/052 -type f \( -name '*.nds' -o -name '*.bin' -o -name '*.sav' -o -name '*.dsv' -o -name '*.rom' -o -name '*.key' \) | grep -q .; then
+            echo "Forbidden private/DSi file detected" >&2
+            exit 1
+          fi
+          echo "052 PC-only synthetic QA; physical DSi and real BizHawk 052 not tested." >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: DSi_052_ASMP_EU_OnePass_Observer_PC_ONLY_NO_DSi
+          path: out/052/
+          retention-days: 14
+          if-no-files-found: error
+  windows-ps51-052:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Windows PS5.1 source guard and legacy regressions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "PS5.1 expected" }
+          py -3 tests/test-asmp-observer-052.py
+          if ($LASTEXITCODE -ne 0) { throw "052 safety tests failed" }
+          py -3 tests/test-asmp-events-051.py
+          if ($LASTEXITCODE -ne 0) { throw "051 regressions failed" }
+          py -3 tests/test-asmp-events-050.py
+          if ($LASTEXITCODE -ne 0) { throw "050 regressions failed" }
+          py -3 tests/test-known-asmp-049.py
+          if ($LASTEXITCODE -ne 0) { throw "049 regressions failed" }
+          Write-Host "DSIRB052_WINDOWS_PS51_QA_PASS"
